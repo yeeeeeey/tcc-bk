@@ -1,0 +1,44 @@
+rodar
+node sistema-logistica/backend/src/server.js
+
+npm install bcrypt
+npm install express cors pg dotenv
+
+
+
+#criar produtos
+Invoke-RestMethod -Uri http://localhost:3000/produtos -Method POST -ContentType "application/json" -Body '{"nome":"algo","descricao":"algo","preco":1,"quantidade":1}'
+#listar produtos
+Invoke-RestMethod -Uri http://localhost:3000/produtos
+#buscar por id                                 id a do produto
+Invoke-RestMethod -Uri http://localhost:3000/produtos/1
+#delete                                      id do produto a deletar 
+Invoke-RestMethod -Uri http://localhost:3000/produtos/1 -Method DELETES
+
+#criar usuarios
+Invoke-RestMethod -Uri http://localhost:3000/usuarios -Method POST -ContentType "application/json" -Body '{"login":"admin","senha":"123456","perfil":"administrador"}'
+                                                      |listar tudo
+                                                      /1|listar por id
+                                                      /1 -Method DELETEs| delete por id
+
+
+#armazens
+Invoke-RestMethod -Uri http://localhost:3000/armazens -Method GET
+$resultado = Invoke-RestMethod -Uri http://localhost:3000/armazens -Method GET
+>> $resultado
+>> $resultado.Count 
+
+#movimentações
+Invoke-RestMethod -Uri http://localhost:3000/movimentacoes -Method POST -ContentType "application/json" -Body '{"produto_id":13,"origem":"Armazém Central","destino":"Cliente Final"}'
+
+#entregas
+Invoke-RestMethod -Uri http://localhost:3000/entregas -Method POST -ContentType "application/json" -Body '{"produto_id":9,"quantidade":10,"destino":"Rua Exemplo, 123","data_prevista":"2026-09-25"}'
+
+#rastreamento
+Invoke-RestMethod -Uri http://localhost:3000/rastreamento -Method POST -ContentType "application/json" -Body '{"entrega_id":1,"localizacao_atual":"Centro de Distribuição SP","status":"em transito"}'
+
+Invoke-RestMethod -Uri http://localhost:3000/rastreamento/entrega/1 -Method GET
+
+#transportadora
+Invoke-RestMethod -Uri http://localhost:3000/transportadoras -Method POST -ContentType "application/json" -Body '{"nome":"Transportadora Veloz","cnpj":"98.765.432/0001-10","contato":"(11) 98888-7777"}'
+
