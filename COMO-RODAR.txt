@@ -1,0 +1,259 @@
+==========================================================================
+ BANKAI - SISTEMA DE LOGÍSTICA
+ Guia passo a passo: do clone do GitHub até rodar local e publicar na Vercel
+==========================================================================
+
+O projeto tem três partes no mesmo repositório:
+
+  backend/    API em Node.js + Express (rotas de usuários, produtos, entregas...)
+  frontend/   Site em React + Vite (landing, login, cadastro e dashboard)
+  database/   schema.sql com as tabelas do banco PostgreSQL (hospedado na Neon)
+  api/        Arquivo que a Vercel usa para rodar o backend como função
+  vercel.json Configuração do deploy na Vercel
+
+O front chama o backend; o backend conecta no banco pela variável DATABASE_URL.
+
+
+--------------------------------------------------------------------------
+ PASSO 0 - Programas necessários (instalar uma vez por computador)
+--------------------------------------------------------------------------
+
+1. Node.js 20 ou mais novo (versão LTS): https://nodejs.org
+   O npm já vem junto.
+2. Git: https://git-scm.com
+3. (Opcional) VS Code: https://code.visualstudio.com
+
+Confira no terminal (PowerShell, Prompt de Comando ou Git Bash):
+
+    node -v        -> deve mostrar v20 ou maior
+    npm -v
+    git --version
+
+Se o PowerShell disser que "npm.ps1 não pode ser carregado", use o
+Prompt de Comando (cmd) ou o Git Bash para os comandos deste guia.
+
+
+--------------------------------------------------------------------------
+ PASSO 1 - Baixar o código
+--------------------------------------------------------------------------
+
+    git clone https://github.com/SEU-USUARIO/NOME-DO-REPOSITORIO.git
+    cd NOME-DO-REPOSITORIO
+
+(Troque pelo endereço real do repositório. Todos os comandos abaixo são
+rodados nesta pasta, a raiz do repositório, salvo quando indicado.)
+
+
+--------------------------------------------------------------------------
+ PASSO 2 - Instalar as dependências
+--------------------------------------------------------------------------
+
+    npm install
+
+Um único comando na raiz instala o backend e o frontend (o projeto usa
+"npm workspaces"). Cria a pasta node_modules, que NÃO vai para o Git.
+Se trocar de computador ou apagar o node_modules, rode de novo.
+
+
+--------------------------------------------------------------------------
+ PASSO 3 - Banco de dados (Neon)
+--------------------------------------------------------------------------
+
+Se o grupo já tem um banco na Neon, só pegue a string de conexão com quem
+tem acesso e pule para o item 3.
+
+1. Crie uma conta em https://neon.tech e um projeto (PostgreSQL).
+2. No painel do projeto clique em "Connect" e copie a "Connection string".
+   Ela tem o formato:
+     postgresql://usuario:senha@host/nome_do_banco?sslmode=require
+3. Crie o arquivo .env na raiz do repositório a partir do exemplo:
+
+     Prompt de Comando:   copy .env.example .env
+     PowerShell:          Copy-Item .env.example .env
+     Git Bash/Mac/Linux:  cp .env.example .env
+
+4. Abra o .env e cole a string em DATABASE_URL=...
+   NUNCA envie o .env para o GitHub (o .gitignore já impede).
+
+5. Teste a conexão:
+
+     npm run db:test
+     -> "Conectado ao banco de dados com sucesso!"
+
+6. Crie/atualize as tabelas:
+
+     npm run db:schema
+     -> "Schema aplicado com sucesso!"
+
+   Pode rodar de novo sempre que o database/schema.sql mudar: o script só
+   cria o que falta e não apaga dados.
+
+
+--------------------------------------------------------------------------
+ PASSO 4 - Rodar o sistema no computador (dois terminais)
+--------------------------------------------------------------------------
+
+Terminal 1 - backend (API):
+
+    npm run dev:backend
+    -> "Servidor rodando em http://localhost:3000"
+
+    Teste no navegador: http://localhost:3000/health
+    -> {"status":"ok","banco":"conectado"}
+
+Terminal 2 - frontend (site):
+
+    npm run dev:frontend
+    -> mostra o endereço http://localhost:5173
+
+Abra http://localhost:5173 no navegador.
+
+Os dois terminais precisam ficar abertos. Para parar, Ctrl + C em cada um.
+O "dev" reinicia sozinho quando você salva um arquivo.
+
+
+--------------------------------------------------------------------------
+ PASSO 5 - Primeiro uso
+--------------------------------------------------------------------------
+
+1. No site, clique em "Começar agora" e crie uma conta (perfil operador).
+2. Faça login com o e-mail e a senha: você cai no Dashboard.
+
+Para criar um ADMINISTRADOR (o cadastro do site sempre cria operador),
+use a API com o backend rodando. Troque a senha do exemplo!
+
+  PowerShell:
+    Invoke-RestMethod -Uri http://localhost:3000/usuarios -Method POST -ContentType "application/json" -Body '{"login":"admin","senha":"TroqueEstaSenha123","perfil":"administrador","nome":"Administrador"}'
+
+  Git Bash / Mac / Linux:
+    curl -X POST http://localhost:3000/usuarios -H "Content-Type: application/json" -d '{"login":"admin","senha":"TroqueEstaSenha123","perfil":"administrador","nome":"Administrador"}'
+
+Perfis válidos: administrador, gerente_logistico, operador.
+
+
+--------------------------------------------------------------------------
+ PASSO 6 - Publicar na Vercel
+--------------------------------------------------------------------------
+
+O repositório já está pronto: o site e a API ficam no mesmo endereço
+(o site em /, a API em /api). Não precisa configurar build à mão.
+
+1. Garanta que o banco da Neon já tem as tabelas (Passo 3, item 6).
+2. Entre em https://vercel.com com a conta do GitHub.
+3. "Add New..." > "Project" > importe este repositório.
+4. Na tela de configuração:
+     - Framework Preset: Other (o vercel.json já define tudo)
+     - Root Directory: deixe a raiz ( ./ )
+     - Environment Variables: adicione
+         DATABASE_URL = (a mesma string da Neon do seu .env)
+       Dica: na Neon, prefira a string "pooled" (o host tem "-pooler"),
+       que aguenta melhor várias conexões da Vercel.
+5. Clique em "Deploy" e espere terminar.
+6. Teste:
+     https://SEU-PROJETO.vercel.app/api/health  -> {"status":"ok",...}
+     https://SEU-PROJETO.vercel.app             -> o site
+
+A partir daí, todo "git push" na branch principal publica de novo sozinho.
+Se mudar a DATABASE_URL na Vercel, faça "Redeploy" para valer.
+
+
+--------------------------------------------------------------------------
+ PASSO 7 - Enviar alterações para o GitHub
+--------------------------------------------------------------------------
+
+    git add .
+    git commit -m "descreva o que mudou"
+    git push
+
+
+--------------------------------------------------------------------------
+ COMANDOS ÚTEIS (resumo)
+--------------------------------------------------------------------------
+
+    npm install            instala tudo (raiz)
+    npm run db:test        testa a conexão com o banco
+    npm run db:schema      cria/atualiza as tabelas
+    npm run dev:backend    API local com recarga automática (porta 3000)
+    npm start              API local sem recarga automática
+    npm run dev:frontend   site local (porta 5173)
+    npm run build          gera o site de produção em frontend/dist
+
+
+--------------------------------------------------------------------------
+ TESTAR A API PELO TERMINAL (backend rodando)
+--------------------------------------------------------------------------
+
+Localmente as rotas funcionam com e sem /api na frente
+(http://localhost:3000/produtos = http://localhost:3000/api/produtos).
+Na Vercel use sempre /api: https://SEU-PROJETO.vercel.app/api/produtos
+
+Exemplos em PowerShell (no Git Bash use curl como no Passo 5):
+
+# saúde da API e do banco
+Invoke-RestMethod -Uri http://localhost:3000/health
+
+# resumo do dashboard
+Invoke-RestMethod -Uri http://localhost:3000/dashboard
+
+# usuários
+Invoke-RestMethod -Uri http://localhost:3000/usuarios/cadastro -Method POST -ContentType "application/json" -Body '{"nome":"Maria","email":"maria@exemplo.com","senha":"senha1234"}'
+Invoke-RestMethod -Uri http://localhost:3000/usuarios/login -Method POST -ContentType "application/json" -Body '{"login":"maria@exemplo.com","senha":"senha1234"}'
+Invoke-RestMethod -Uri http://localhost:3000/usuarios
+Invoke-RestMethod -Uri http://localhost:3000/usuarios/1
+Invoke-RestMethod -Uri http://localhost:3000/usuarios/1 -Method DELETE
+
+# produtos
+Invoke-RestMethod -Uri http://localhost:3000/produtos -Method POST -ContentType "application/json" -Body '{"nome":"Caixa","descricao":"papelão","preco":2.5,"quantidade":100}'
+Invoke-RestMethod -Uri http://localhost:3000/produtos
+Invoke-RestMethod -Uri http://localhost:3000/produtos/1
+Invoke-RestMethod -Uri http://localhost:3000/produtos/1 -Method PUT -ContentType "application/json" -Body '{"quantidade":80}'
+Invoke-RestMethod -Uri http://localhost:3000/produtos/1 -Method DELETE
+
+# armazéns
+Invoke-RestMethod -Uri http://localhost:3000/armazens
+Invoke-RestMethod -Uri http://localhost:3000/armazens -Method POST -ContentType "application/json" -Body '{"nome":"Armazém Sul","localizacao":"Curitiba, PR","capacidade_maxima":2000}'
+
+# movimentações
+Invoke-RestMethod -Uri http://localhost:3000/movimentacoes -Method POST -ContentType "application/json" -Body '{"produto_id":1,"origem":"Armazém Central","destino":"Cliente Final"}'
+
+# entregas
+Invoke-RestMethod -Uri http://localhost:3000/entregas -Method POST -ContentType "application/json" -Body '{"produto_id":1,"quantidade":10,"destino":"Rua Exemplo, 123","data_prevista":"2026-12-20"}'
+
+# rastreamento (também atualiza o status da entrega)
+Invoke-RestMethod -Uri http://localhost:3000/rastreamento -Method POST -ContentType "application/json" -Body '{"entrega_id":1,"localizacao_atual":"Centro de Distribuição SP","status":"em transito"}'
+Invoke-RestMethod -Uri http://localhost:3000/rastreamento/entrega/1
+
+# transportadoras
+Invoke-RestMethod -Uri http://localhost:3000/transportadoras -Method POST -ContentType "application/json" -Body '{"nome":"Transportadora Veloz","cnpj":"98.765.432/0001-10","contato":"(11) 98888-7777"}'
+
+# veículos
+Invoke-RestMethod -Uri http://localhost:3000/veiculos -Method POST -ContentType "application/json" -Body '{"placa":"ABC1D23","modelo":"VUC","capacidade_carga":3500,"transportadora_id":1}'
+
+Nas rotas PUT, mande só os campos que quer mudar; os outros ficam iguais.
+
+
+--------------------------------------------------------------------------
+ PROBLEMAS COMUNS
+--------------------------------------------------------------------------
+
+"DATABASE_URL não definida"
+    Falta o arquivo .env na raiz (Passo 3) ou a variável na Vercel (Passo 6).
+
+"Não foi possível abrir a porta 3000: ... EADDRINUSE"
+    Já tem um backend rodando. Feche o outro terminal ou rode com outra
+    porta: no .env coloque PORT=3001 e, no frontend, crie
+    frontend/.env.local com VITE_API_URL=http://localhost:3001
+
+Site mostra "Não foi possível conectar ao servidor"
+    O backend não está rodando (Terminal 1 do Passo 4).
+
+Login ou cadastro dão "Erro ao..." (status 500)
+    Rode "npm run db:schema" para criar as colunas/tabelas que faltam e
+    veja a mensagem de erro no terminal do backend.
+
+"Cannot find module ..."
+    Rode "npm install" na raiz do repositório.
+
+Na Vercel o site abre mas a API dá erro
+    Veja em Vercel > projeto > Logs. Quase sempre é DATABASE_URL faltando
+    ou errada (depois de corrigir, faça Redeploy).
