@@ -1,0 +1,110 @@
+
+O projeto tem três partes no mesmo repositório:
+
+  backend/    API em Node.js + Express (rotas de usuários, produtos, entregas...)
+  frontend/   Site em React + Vite (landing, login, cadastro e dashboard)
+  database/   schema.sql com as tabelas do banco PostgreSQL (hospedado na Neon)
+  api/        Arquivo que a Vercel usa para rodar o backend como função
+  vercel.json Configuração do deploy na Vercel
+
+O front chama o backend; o backend conecta no banco pela variável DATABASE_URL.
+
+git clone https://github.com/yeeeeeey/tcc-bk/tree/integracao-front-back.git
+cd tcc-bk/tree/integracao-front-back
+
+
+
+npm run dev:backend
+"Servidor rodando em http://localhost:3000"
+
+Teste no navegador: http://localhost:3000/health
+{"status":"ok","banco":"conectado"}
+
+npm run dev:frontend
+mostra o endereço http://localhost:5173
+
+Abra http://localhost:5173 no navegador.
+
+Os dois terminais precisam ficar abertos. Para parar, Ctrl + C
+
+
+Para criar um ADMINISTRADOR (o cadastro do site sempre cria operador),
+use a API com o backend rodando. Troque a senha do exemplo!
+
+PowerShell:
+Invoke-RestMethod -Uri http://localhost:3000/usuarios -Method POST -ContentType "application/json" -Body '{"login":"admin","senha":"TroqueEstaSenha123","perfil":"administrador","nome":"Administrador"}'
+
+Git Bash / Mac / Linux:
+curl -X POST http://localhost:3000/usuarios -H "Content-Type: application/json" -d '{"login":"admin","senha":"TroqueEstaSenha123","perfil":"administrador","nome":"Administrador"}'
+
+Perfis válidos: administrador, gerente_logistico, operador.
+
+git add .
+git commit 
+git push
+
+comandos uteis
+
+npm install            instala tudo (raiz)
+npm run db:test        testa a conexão com o banco
+npm run db:schema      cria/atualiza as tabelas
+npm run dev:backend    API local com recarga automática (porta 3000)
+npm start              API local sem recarga automática
+npm run dev:frontend   site local (porta 5173)
+npm run build          gera o site de produção em frontend/dist
+
+
+Localmente as rotas funcionam com e sem /api na frente
+(http://localhost:3000/produtos = http://localhost:3000/api/produtos).
+Na Vercel use sempre /api: https://github.com/yeeeeeey/tcc-bk/tree/integracao-front-back.git
+cd tcc-bk/tree/integracao-front-back
+
+# estado da API e do banco
+Invoke-RestMethod -Uri http://localhost:3000/health
+
+# resumo do dashboard
+Invoke-RestMethod -Uri http://localhost:3000/dashboard
+
+# usuários
+Invoke-RestMethod -Uri http://localhost:3000/usuarios/cadastro -Method POST -ContentType "application/json" -Body '{"nome":"Maria","email":"maria@exemplo.com","senha":"senha1234"}'
+Invoke-RestMethod -Uri http://localhost:3000/usuarios/login -Method POST -ContentType "application/json" -Body '{"login":"maria@exemplo.com","senha":"senha1234"}'
+Invoke-RestMethod -Uri http://localhost:3000/usuarios
+Invoke-RestMethod -Uri http://localhost:3000/usuarios/1
+Invoke-RestMethod -Uri http://localhost:3000/usuarios/1 -Method DELETE
+
+# produtos
+Invoke-RestMethod -Uri http://localhost:3000/produtos -Method POST -ContentType "application/json" -Body '{"nome":"Caixa","descricao":"papelão","preco":2.5,"quantidade":100}'
+Invoke-RestMethod -Uri http://localhost:3000/produtos
+Invoke-RestMethod -Uri http://localhost:3000/produtos/1
+Invoke-RestMethod -Uri http://localhost:3000/produtos/1 -Method PUT -ContentType "application/json" -Body '{"quantidade":80}'
+Invoke-RestMethod -Uri http://localhost:3000/produtos/1 -Method DELETE
+
+# armazéns
+Invoke-RestMethod -Uri http://localhost:3000/armazens
+Invoke-RestMethod -Uri http://localhost:3000/armazens -Method POST -ContentType "application/json" -Body '{"nome":"Armazém Sul","localizacao":"Curitiba, PR","capacidade_maxima":2000}'
+
+# movimentações
+Invoke-RestMethod -Uri http://localhost:3000/movimentacoes -Method POST -ContentType "application/json" -Body '{"produto_id":1,"origem":"Armazém Central","destino":"Cliente Final"}'
+
+# entregas
+Invoke-RestMethod -Uri http://localhost:3000/entregas -Method POST -ContentType "application/json" -Body '{"produto_id":1,"quantidade":10,"destino":"Rua Exemplo, 123","data_prevista":"2026-12-20"}'
+
+# rastreamento (também atualiza o status da entrega)
+Invoke-RestMethod -Uri http://localhost:3000/rastreamento -Method POST -ContentType "application/json" -Body '{"entrega_id":1,"localizacao_atual":"Centro de Distribuição SP","status":"em transito"}'
+Invoke-RestMethod -Uri http://localhost:3000/rastreamento/entrega/1
+
+# transportadoras
+Invoke-RestMethod -Uri http://localhost:3000/transportadoras -Method POST -ContentType "application/json" -Body '{"nome":"Transportadora Veloz","cnpj":"98.765.432/0001-10","contato":"(11) 98888-7777"}'
+
+# veículos
+Invoke-RestMethod -Uri http://localhost:3000/veiculos -Method POST -ContentType "application/json" -Body '{"placa":"ABC1D23","modelo":"VUC","capacidade_carga":3500,"transportadora_id":1}'
+
+Nas rotas PUT, mande só os campos que quer mudar; os outros ficam iguais.
+
+
+Site mostra "Não foi possível conectar ao servidor"
+O backend não está rodando 
+
+Login ou cadastro dão "Erro ao..." (status 500)
+    Rode "npm run db:schema" para recriar o banco se tiver algo faltando
+
