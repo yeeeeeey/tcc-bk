@@ -13,18 +13,14 @@ import React, { useEffect, useRef, useState } from "react";
  
 export default function Reveal({ children, delay = 0, as: Tag = "div", style = {}, className = "" }) {
   const ref = useRef(null);
-  const [visible, setVisible] = useState(false);
+  // Respeita quem prefere menos movimento na tela: já começa visível
+  const [visible, setVisible] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
  
   useEffect(() => {
     const el = ref.current;
-    if (!el) return;
- 
-    // Respeita quem prefere menos movimento na tela
-    const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (prefersReduced) {
-      setVisible(true);
-      return;
-    }
+    if (!el || visible) return;
  
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -37,7 +33,7 @@ export default function Reveal({ children, delay = 0, as: Tag = "div", style = {
     );
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
+  }, [visible]);
  
   return (
     <Tag

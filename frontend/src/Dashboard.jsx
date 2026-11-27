@@ -2,15 +2,16 @@ import React, { useEffect, useState } from "react";
 import {
   LayoutDashboard, Package, Warehouse, Truck as TruckIcon, Search as SearchIcon,
   ClipboardList, AlertTriangle, Users, Shield, Bell, Boxes, ArrowLeftRight, ScrollText,
-  CircleUser, CheckCircle2, Clock, Car, MapPin, LogOut, RefreshCw,
+  CircleUser, CheckCircle2, Clock, Car, MapPin, LogOut, RefreshCw, Menu, X,
 } from "lucide-react";
 import { buscarDashboard } from "./api";
-import { navegar } from "./rotas";
+import { navegar } from "./navegacao";
 import ListaRecurso from "./painel/ListaRecurso";
 import ResultadosBusca from "./painel/ResultadosBusca";
 import GestaoUsuarios from "./painel/GestaoUsuarios";
 import MeuPerfil from "./painel/MeuPerfil";
 import Perfis from "./painel/Perfis";
+import Relatorios from "./painel/Relatorios";
 import { NOMES_PERFIL, formatarData, nomeDoStatus } from "./painel/formatacao";
  
 // ---------------------------------------------------------------------------
@@ -40,7 +41,7 @@ const navGroups = [
   {
     titulo: "Gestão",
     items: [
-      { slug: "relatorios", label: "Relatórios", Icon: ClipboardList, permissao: "dashboard:ler" },
+      { slug: "relatorios", label: "Relatórios", Icon: ClipboardList, permissao: "relatorios:ler" },
       { slug: "alertas", label: "Alertas", Icon: AlertTriangle, permissao: "dashboard:ler" },
       { slug: "transportadoras", label: "Transportadora", Icon: TruckIcon, permissao: "transportadoras:ler" },
       { slug: "veiculos", label: "Veículos", Icon: Car, permissao: "veiculos:ler" },
@@ -151,6 +152,15 @@ export default function DashboardScreen({ usuario, pagina = "dashboard", query =
   const [dados, setDados] = useState(null);
   const [erro, setErro] = useState("");
   const [versao, setVersao] = useState(0);
+  const [menuAberto, setMenuAberto] = useState(false);
+
+  // Gaveta do menu (celular): fecha com Esc
+  useEffect(() => {
+    if (!menuAberto) return undefined;
+    const aoTeclar = (e) => e.key === "Escape" && setMenuAberto(false);
+    document.addEventListener("keydown", aoTeclar);
+    return () => document.removeEventListener("keydown", aoTeclar);
+  }, [menuAberto]);
 
   useEffect(() => {
     let ativo = true;
@@ -456,19 +466,94 @@ export default function DashboardScreen({ usuario, pagina = "dashboard", query =
         .db-busca-item:hover { border-color: rgba(139,92,246,0.4); }
         .db-busca-item span { font-size: 11.5px; color: #8981A8; }
 
+        .db-menu-btn, .db-menu-fechar {
+          display: none; background: none; border: 1px solid rgba(255,255,255,0.12); color: #C9C3E0;
+          border-radius: 10px; padding: 7px; cursor: pointer; align-items: center; justify-content: center;
+        }
+        .db-menu-fechar { margin-left: auto; border: none; }
+        .db-menu-fundo { position: fixed; inset: 0; background: rgba(5,3,15,0.6); z-index: 39; }
+
+        /* Relatórios */
+        .db-rel-filtros { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .db-rel-data { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #8981A8; font-weight: 600; }
+        .db-rel-data input { color-scheme: dark; }
+        .db-rel-conteudo { transition: opacity .2s ease; }
+        .db-rel-conteudo > .db-panel { margin-bottom: 16px; }
+        .db-rel-conteudo.atualizando { opacity: .55; }
+        .db-rel-kpis { grid-template-columns: repeat(6, 1fr); }
+        .db-rel-detalhe { font-size: 11px; color: #6E6890; margin-top: 6px; }
+        .db-rel-sub { margin: 2px 0 0; font-size: 12px; color: #8981A8; }
+        .db-rel-grafico { display: grid; grid-template-columns: auto 1fr; grid-template-rows: 180px 22px; column-gap: 10px; }
+        .db-rel-eixo-y {
+          grid-row: 1; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-end;
+          font-size: 11px; color: #6E6890; font-variant-numeric: tabular-nums; margin: -6px 0;
+        }
+        .db-rel-area { grid-row: 1; grid-column: 2; position: relative; }
+        .db-rel-grade { position: absolute; left: 0; right: 0; height: 1px; background: rgba(255,255,255,0.07); }
+        .db-rel-colunas { position: absolute; inset: 0; display: flex; align-items: flex-end; outline: none; border-radius: 6px; }
+        .db-rel-colunas:focus-visible { box-shadow: 0 0 0 2px rgba(139,92,246,0.6); }
+        .db-rel-coluna { flex: 1; height: 100%; display: flex; align-items: flex-end; justify-content: center; padding: 0 1px; }
+        .db-rel-barra { display: block; width: 100%; max-width: 24px; background: #8B5CF6; border-radius: 4px 4px 0 0; transition: background .15s ease; }
+        .db-rel-coluna.ativa .db-rel-barra { background: #A78BFA; }
+        .db-rel-coluna.ativa { background: rgba(255,255,255,0.03); }
+        .db-rel-tooltip {
+          position: absolute; top: -8px; transform: translate(-50%, -100%); pointer-events: none; white-space: nowrap;
+          background: #1A1530; border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; padding: 6px 10px;
+          font-size: 12px; color: #C9C3E0; box-shadow: 0 8px 24px rgba(0,0,0,0.4); z-index: 2;
+        }
+        .db-rel-tooltip strong { color: #F4F2FB; font-size: 13px; }
+        .db-rel-tooltip span { display: block; color: #8981A8; font-size: 11px; }
+        .db-rel-eixo-x { grid-row: 2; grid-column: 2; position: relative; font-size: 11px; color: #6E6890; }
+        .db-rel-eixo-x span { position: absolute; top: 6px; transform: translateX(-50%); white-space: nowrap; }
+        .db-rel-eixo-x span:first-child { transform: none; left: 0 !important; }
+        .db-rel-eixo-x span:last-child:not(:first-child) { transform: none; left: auto !important; right: 0; }
+        .db-rel-tabela { max-height: 320px; overflow-y: auto; }
+        .db-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+        .db-rel-ranking, .db-rel-medidores { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+        .db-rel-ranking li { display: grid; grid-template-columns: minmax(90px, 32%) 1fr; align-items: center; gap: 12px; }
+        .db-rel-rotulo { font-size: 13px; color: #C9C3E0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .db-rel-trilho { display: flex; align-items: center; gap: 8px; min-width: 0; }
+        .db-rel-barra-h { display: block; height: 12px; min-width: 2px; background: #8B5CF6; border-radius: 0 4px 4px 0; flex-shrink: 1; }
+        .db-rel-valor { font-size: 12px; color: #8981A8; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+        .db-rel-medidor-topo { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+        .db-rel-figura { font-size: 12px; color: #8981A8; white-space: nowrap; }
+        .db-rel-medidor { display: block; height: 8px; border-radius: 999px; background: rgba(139,92,246,0.18); overflow: hidden; }
+        .db-rel-medidor-fill { display: block; height: 100%; border-radius: 999px; background: #8B5CF6; }
+        .db-rel-medidor-fill.alerta { background: #FACC15; }
+        .db-rel-medidor-fill.critico { background: #F87171; }
+        .db-rel-mov { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+        .db-rel-mov div { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 14px; }
+        .db-rel-mov strong { display: block; font-size: 22px; font-family: 'Space Grotesk', sans-serif; }
+        .db-rel-mov span { font-size: 12px; color: #8981A8; }
+
         @media (max-width: 1100px) {
           .db-stats-grid { grid-template-columns: repeat(3, 1fr); }
           .db-row-2 { grid-template-columns: 1fr; }
         }
         @media (max-width: 760px) {
-          .db-sidebar { display: none; }
+          .db-sidebar {
+            position: fixed; left: 0; top: 0; z-index: 40; width: 270px; max-width: 85vw;
+            transform: translateX(-100%); box-shadow: 12px 0 40px rgba(0,0,0,0.5);
+            /* Fechada, fica fora da tela E fora do alcance do Tab/leitor de tela */
+            visibility: hidden; transition: transform .22s ease, visibility 0s linear .22s;
+          }
+          .db-sidebar.aberto { transform: none; visibility: visible; transition: transform .22s ease; }
+          .db-menu-btn, .db-menu-fechar { display: inline-flex; }
+          .db-main { padding: 18px 16px 48px; }
           .db-stats-grid { grid-template-columns: repeat(2, 1fr); }
+          .db-search { order: 3; max-width: none; flex-basis: 100%; }
+          .db-rel-mov { grid-template-columns: 1fr; }
+          .db-rel-ranking li { grid-template-columns: 1fr; gap: 4px; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .db-sidebar, .db-rel-conteudo { transition: none; }
         }
       `}</style>
  
-      {/* SIDEBAR */}
-      <aside className="db-sidebar">
-        <div className="db-display" style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 18, fontWeight: 700, padding: "6px 10px 18px" }}>
+      {/* SIDEBAR (no celular vira uma gaveta aberta pelo botão de menu) */}
+      {menuAberto && <div className="db-menu-fundo" onClick={() => setMenuAberto(false)} aria-hidden="true" />}
+      <aside id="db-menu-lateral" className={`db-sidebar${menuAberto ? " aberto" : ""}`}>
+        <div className="db-display db-marca" style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 18, fontWeight: 700, padding: "6px 10px 18px" }}>
           <span
             style={{
               width: 26, height: 26, borderRadius: 8,
@@ -476,9 +561,12 @@ export default function DashboardScreen({ usuario, pagina = "dashboard", query =
               display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 13,
             }}
           >
-            ◆
+            💀
           </span>
-          Trilha
+          Bankai
+          <button type="button" className="db-menu-fechar" aria-label="Fechar menu" onClick={() => setMenuAberto(false)}>
+            <X size={18} />
+          </button>
         </div>
  
         <nav aria-label="Menu do painel">
@@ -497,6 +585,7 @@ export default function DashboardScreen({ usuario, pagina = "dashboard", query =
                     onClick={(e) => {
                       if (e.ctrlKey || e.metaKey || e.shiftKey) return;
                       e.preventDefault();
+                      setMenuAberto(false);
                       setActiveItem(slug);
                     }}
                   >
@@ -526,6 +615,16 @@ export default function DashboardScreen({ usuario, pagina = "dashboard", query =
         {/* TOPBAR */}
         <div className="db-topbar">
           <div className="db-greeting">
+            <button
+              type="button"
+              className="db-menu-btn"
+              aria-label="Abrir menu"
+              aria-expanded={menuAberto}
+              aria-controls="db-menu-lateral"
+              onClick={() => setMenuAberto(true)}
+            >
+              <Menu size={20} />
+            </button>
             <div>
               <h1 className="db-display">Olá, {primeiroNome}! 👋</h1>
               <p>Acompanhe toda a sua operação em tempo real.</p>
@@ -608,14 +707,7 @@ export default function DashboardScreen({ usuario, pagina = "dashboard", query =
 
         {activeItem === "perfil" && <MeuPerfil usuario={usuario} onAtualizado={onUsuarioAtualizado} />}
 
-        {activeItem === "relatorios" && (
-          <div className="db-panel">
-            <div className="db-panel-head">
-              <span className="db-panel-title">Relatórios</span>
-            </div>
-            <p className="db-msg">Esta tela ainda está em construção.</p>
-          </div>
-        )}
+        {activeItem === "relatorios" && !semPermissao && <Relatorios />}
 
         {activeItem === "alertas" && (
           <div className="db-panel">

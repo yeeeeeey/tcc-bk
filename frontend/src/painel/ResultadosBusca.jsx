@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { buscarGlobal } from "../api";
-import { navegar } from "../rotas";
+import { navegar } from "../navegacao";
 
 const GRUPOS = [
   ["produtos", "Produtos", "produtos"],

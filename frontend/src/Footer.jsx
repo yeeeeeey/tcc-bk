@@ -1,6 +1,8 @@
 import React from "react";
 import Reveal from "./Reveal";
 import { Link } from "./rotas";
+
+const ANO_ATUAL = new Date().getFullYear();
  
 // Ícones feitos à mão em SVG — evita depender de nomes de exportação
 // específicos do lucide-react, que mudam entre versões do pacote.
@@ -200,7 +202,7 @@ export default function FooterSection() {
  
       <Reveal delay={0.1}>
         <div className="ft-bottom">
-          <span>© {new Date().getFullYear()} Bankai. Todos os direitos reservados ao Matheus Guimarães, Matheus Gaiga, Augusto, Afonso e Lucas.</span>
+          <span>© {ANO_ATUAL} Bankai. Todos os direitos reservados ao Matheus Guimarães, Matheus Gaiga, Augusto, Afonso e Lucas.</span>
           <span>
             Projeto acadêmico de TCC — logística e rastreabilidade ·{" "}
             <Link para="/termos" className="ft-link" style={{ fontSize: "inherit" }}>Termos de uso</Link>

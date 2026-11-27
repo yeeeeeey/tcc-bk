@@ -9,7 +9,8 @@ import LoginScreen from './Login';
 import SignupForm from './Cadastro';
 import TermosPage from './Termos';
 import { EVENTO_SESSAO_EXPIRADA, logout, sessaoAtual } from './api';
-import { Redirecionar, navegar, useLocalizacao } from './rotas';
+import { Redirecionar } from './rotas';
+import { navegar, useLocalizacao } from './navegacao';
 
 // A sessão é um cookie HttpOnly validado pelo backend. O front não guarda mais o
 // usuário no localStorage: ao abrir o site ele pergunta ao servidor quem está logado.

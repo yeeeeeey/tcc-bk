@@ -90,6 +90,11 @@ export function listar(recurso, { pagina, limite, busca, ...filtros } = {}) {
   return request(comParametros(`/${recurso}`, { pagina, limite, busca, ...filtros }));
 }
 
+// Relatório gerencial do período (datas AAAA-MM-DD)
+export function buscarRelatorio({ de, ate }) {
+  return request(comParametros("/relatorios", { de, ate }));
+}
+
 export function buscarGlobal(termo) {
   return request(comParametros("/busca", { q: termo }));
 }

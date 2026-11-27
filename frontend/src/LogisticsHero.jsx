@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { Factory, Truck, Box, ShoppingCart, User, ArrowRight, ChevronDown, Menu, X } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -20,7 +20,7 @@ const stages = [
   { id: "cliente", label: "Cliente", desc: "Entrega validada com prova de origem.", Icon: User },
 ];
 
-function useNodePositions(count, containerRef) {
+function useNodePositions(count) {
   // Returns normalized x positions (0..1) for `count` evenly spaced nodes
   return Array.from({ length: count }, (_, i) => (i + 0.5) / count);
 }

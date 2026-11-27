@@ -22,9 +22,10 @@ const OPERADOR = [
     "movimentacoes:criar"
 ];
 
-// Gerente logístico: mantém os cadastros operacionais
+// Gerente logístico: mantém os cadastros operacionais e acompanha os relatórios
 const GERENTE_LOGISTICO = [
     ...OPERADOR,
+    "relatorios:ler",
     ...["produtos", "armazens", "entregas", "transportadoras", "veiculos"].flatMap((recurso) => [
         `${recurso}:criar`,
         `${recurso}:editar`,

@@ -22,7 +22,17 @@ Copie .env.example para .env e coloque a DATABASE_URL da Neon.
 
 npm run db:schema      cria/atualiza as tabelas (pode rodar de novo sem perder dados)
 npm run admin:criar -- --login admin --nome "Administrador"
-                       cria o primeiro administrador (a senha é pedida no terminal)
+                       cria o primeiro administrador (a senha é pedida no terminal).
+                       Só é preciso num banco novo: no banco atual o "admin" continua valendo.
+
+
+DEPLOY NA VERCEL
+================
+
+Basta mesclar na branch principal (integracao-2). A cada deploy de PRODUÇÃO o build
+aplica o database/schema.sql no banco sozinho (backend/src/database/migrarNoDeploy.js).
+Deploys de preview não mexem no banco. Se a migração falhar, o deploy não sobe e a
+versão anterior continua no ar. Nenhuma variável nova é obrigatória além da DATABASE_URL.
 
 
 RODAR LOCALMENTE (dois terminais)
@@ -48,6 +58,7 @@ O login cria um cookie de sessão HttpOnly (o navegador guarda, o JavaScript nã
 Perfis válidos: administrador, gerente_logistico, operador.
   operador            consulta tudo da operação, registra rastreamento e movimentações
   gerente_logistico   + cria/edita/exclui produtos, armazéns, entregas, transportadoras e veículos
+                      + relatórios (Gestão > Relatórios, com exportação CSV)
   administrador       + usuários, correção de rastreamento, estorno de movimentações, auditoria
 A tabela completa fica no painel em Administração > Perfis (backend/src/config/permissoes.js).
 
@@ -69,6 +80,7 @@ npm run dev:backend    API local com recarga automática (porta 3000)
 npm start              API local sem recarga automática
 npm run dev:frontend   site local (porta 5173)
 npm run build          gera o site de produção em frontend/dist
+                       (na Vercel, em produção, também aplica o schema no banco)
 npm test               testes automatizados do backend (precisa de TEST_DATABASE_URL,
                        um banco SÓ de testes: ele é apagado a cada execução)
 
@@ -132,8 +144,9 @@ Invoke-RestMethod -Uri http://localhost:3000/rastreamento/entrega/1 -WebSession 
 Invoke-RestMethod -Uri http://localhost:3000/transportadoras -Method POST -ContentType "application/json" -Body '{"nome":"Transportadora Veloz","cnpj":"11.222.333/0001-81","contato":"(11) 98888-7777"}' -WebSession $s
 Invoke-RestMethod -Uri http://localhost:3000/veiculos -Method POST -ContentType "application/json" -Body '{"placa":"ABC1D23","modelo":"VUC","capacidade_carga":3500,"transportadora_id":1}' -WebSession $s
 
-# busca geral e auditoria
+# busca geral, relatório do período e auditoria
 Invoke-RestMethod -Uri "http://localhost:3000/busca?q=caixa" -WebSession $s
+Invoke-RestMethod -Uri "http://localhost:3000/relatorios?de=2026-11-01&ate=2026-11-30" -WebSession $s
 Invoke-RestMethod -Uri http://localhost:3000/auditoria -WebSession $s
 
 # sair

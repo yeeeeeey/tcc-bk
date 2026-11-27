@@ -33,6 +33,8 @@ const buscaRoutes = require("./routes/buscaRoutes");
 
 const administracaoRoutes = require("./routes/administracaoRoutes");
 
+const relatorioRoutes = require("./routes/relatorioRoutes");
+
 
 const app = express();
 
@@ -114,6 +116,8 @@ rotas.use("/veiculos", exigirAutenticacao, veiculoRoutes);
 rotas.use("/dashboard", exigirAutenticacao, dashboardRoutes);
 
 rotas.use("/busca", exigirAutenticacao, buscaRoutes);
+
+rotas.use("/relatorios", exigirAutenticacao, relatorioRoutes);
 
 rotas.use("/perfis", exigirAutenticacao, administracaoRoutes.perfis);
 

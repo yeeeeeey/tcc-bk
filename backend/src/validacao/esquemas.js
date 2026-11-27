@@ -139,6 +139,16 @@ const consultaAuditoria = z.object({
 
 const consultaBusca = z.object({ q: texto(100, 2) });
 
+// Período do relatório: as duas datas são opcionais (padrão: últimos 30 dias)
+const DIAS_MAXIMOS_RELATORIO = 366;
+const consultaRelatorio = z.object({ de: data.optional(), ate: data.optional() })
+    .refine((d) => !d.de || !d.ate || d.de <= d.ate, { error: "a data inicial não pode ser depois da final", path: ["de"] })
+    .refine((d) => {
+        if (!d.de || !d.ate) return true;
+        const dias = (Date.parse(`${d.ate}T00:00:00Z`) - Date.parse(`${d.de}T00:00:00Z`)) / 86400000;
+        return dias < DIAS_MAXIMOS_RELATORIO;
+    }, { error: `o período pode ter no máximo ${DIAS_MAXIMOS_RELATORIO} dias`, path: ["ate"] });
+
 // ---------------------------------------------------------------------------
 // Produtos
 // ---------------------------------------------------------------------------
@@ -348,6 +358,8 @@ module.exports = {
     consultaEstoque,
     consultaAuditoria,
     consultaBusca,
+    consultaRelatorio,
+    DIAS_MAXIMOS_RELATORIO,
     criarProduto,
     atualizarProduto,
     criarArmazem,

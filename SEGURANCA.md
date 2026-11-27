@@ -4,8 +4,9 @@ Este documento liga cada achado do *Relatório de falhas e vulnerabilidades — 
 (verificação de 04/11/2026) ao que foi alterado no código e ao teste que comprova a
 correção. Os testes ficam em `backend/test/` e rodam com `npm test`.
 
-**Legenda:** ✅ corrigido e coberto por teste automatizado · ☑️ corrigido, verificado manualmente ·
-⚠️ depende de ação fora do código (ver [Ações pendentes](#ações-pendentes-fora-do-código))
+**Legenda:** ✅ corrigido e coberto por teste automatizado (ou, no SEC-19, comprovado pela documentação do provedor) ·
+☑️ corrigido e verificado manualmente no navegador. O único passo que ainda depende de vocês está em
+[O que ainda depende de vocês](#o-que-ainda-depende-de-vocês).
 
 ## A. Vulnerabilidades de segurança
 
@@ -25,8 +26,8 @@ correção. Os testes ficam em `backend/test/` e rodam com `npm test`.
 | **SEC-15** CORS permissivo | ✅ | Lista explícita com credenciais; em produção, sem `FRONTEND_URL`, nenhuma origem externa. Em desenvolvimento o Vite faz proxy de `/api` (mesma origem). | `config/ambiente.js` | `seguranca.test.js` |
 | **SEC-16** Cabeçalhos HTTP | ✅ | API: Helmet (sem `X-Powered-By`, CSP `default-src 'none'`, `nosniff`, HSTS em produção) + `Cache-Control: no-store`. Site: CSP, HSTS, `X-Frame-Options`, `Referrer-Policy` e `Permissions-Policy` no `vercel.json`. | `app.js`, `vercel.json` | `seguranca.test.js` |
 | **SEC-17** Trilha de auditoria | ✅ | Tabela `auditoria` (usuário, perfil, ação, recurso, id, resultado, IP, data e detalhes sem segredos) + log estruturado. Cada alteração é gravada **na mesma transação** da auditoria. Também ficam registrados logins, falhas, bloqueios e acessos negados. Tela *Administração > Auditoria*. | `services/auditoria.js` | `seguranca.test.js`, `usuarios.test.js` |
-| **SEC-18** Exclusão em cascata | ✅ | Chaves estrangeiras com histórico passaram de `CASCADE` para `RESTRICT`. A API faz exclusão lógica (`excluido_em`) e recusa excluir produto com estoque ou entregas abertas, armazém com saldo e transportadora com veículos. | `schema.sql`, models | `logistica.test.js` |
-| **SEC-19** Criptografia dos dados | ⚠️ | Senhas com bcrypt (já existia), TLS verificado com o banco (SEC-12), HSTS no site e segredos só em variáveis de ambiente (`.env.example` documentado). Criptografia em repouso depende do provedor. | — | — |
+| **SEC-18** Exclusão em cascata | ✅ | Chaves estrangeiras com histórico passaram de `CASCADE` para `RESTRICT`. A API faz exclusão lógica (`excluido_em`) e recusa excluir produto com estoque ou entregas abertas, armazém com saldo e transportadora com veículos. Backup e restauração: a Neon permite voltar o banco a qualquer ponto dentro da janela de histórico (padrão de 6 h no plano gratuito e 1 dia nos pagos; ajustável em *Settings → Postgres*) ([Neon Docs — Branching](https://neon.com/docs/introduction/branching)). | `schema.sql`, models | `logistica.test.js` |
+| **SEC-19** Criptografia dos dados | ✅ | Em trânsito: HTTPS com HSTS no site e TLS verificado entre API e banco (SEC-12). Em repouso: a Neon declara criptografia AES-256 de todos os dados armazenados, com chaves gerenciadas no AWS KMS/Azure Key Vault ([Neon Docs — Security overview](https://neon.com/docs/security/security-overview)). Senhas com bcrypt; segredos só em variáveis de ambiente (`.env.example` documentado, `.env` fora do Git). | `connection.js`, `vercel.json` | — |
 | **SEC-20** Rastreamento sem transação | ✅ | Evento e status da entrega em `BEGIN/COMMIT/ROLLBACK` com o mesmo cliente e a linha da entrega bloqueada. | `rastreamentoControllers.criar`, `utils/transacao.js` | `logistica.test.js` (falha simulada entre as duas operações) |
 | **SEC-21** Edição/exclusão desalinham status | ✅ | O histórico de rastreamento é a fonte da verdade, e `entregas.status` só muda por eventos. A correção retroativa é só para admin, só no evento mais recente, valida a transição, recalcula o status e audita antes/depois. A exclusão de evento é lógica. | `rastreamentoControllers.corrigirEvento` | `logistica.test.js` |
 | **SEC-22** Entrega sem conferir estoque | ✅ | A entrega reserva o estoque do armazém (informado ou o de maior saldo) na mesma transação; sem saldo → **409** e nada gravado. Cancelar ou excluir devolve a reserva. Testado com 5 pedidos simultâneos. | `services/estoque.js`, `entregaControllers.js` | `logistica.test.js` |
@@ -43,6 +44,15 @@ correção. Os testes ficam em `backend/test/` e rodam com `npm test`.
 | Operador sem tela de perfil | ☑️ | *Conta > Meu perfil*: dados, CNPJ, preferências (itens por página e tela inicial), troca de senha e encerramento das outras sessões. |
 | Campo de busca não funciona | ☑️ | Busca do topo ligada a `GET /busca?q=` (2 a 100 caracteres, `%` e `_` tratados como texto, resultados filtrados pelo perfil). Cada lista também tem filtro e paginação. |
 
+### Melhorias além do relatório
+
+| Item | O que foi feito |
+|---|---|
+| Tela Relatórios (era "em construção") | `GET /relatorios?de=&ate=` (gerente e administrador): entregas criadas, entregues, taxa no prazo, atrasadas, canceladas, unidades enviadas, entregas por dia, por status, produtos mais enviados, movimentações por tipo e ocupação dos armazéns. Filtro de período (7/30/90 dias ou datas livres), gráfico com tooltip por mouse e teclado, alternativa em tabela e exportação CSV. Testes em `relatorios.test.js`. |
+| Menu no celular | Abaixo de 760 px o menu lateral sumia sem alternativa; agora abre como gaveta pelo botão ☰ (fecha com Esc, toque fora ou ao escolher uma tela). |
+| Migração automática | Todo deploy de **produção** na Vercel aplica o `schema.sql` no final do build (`backend/src/database/migrarNoDeploy.js`). Previews não mexem no banco; se a migração falhar, o deploy não sobe e a versão anterior continua no ar. |
+| Marca e lint | Painel mostrava "Trilha"; agora "Bankai", como no restante do site. Avisos do oxlint zerados. |
+
 Os fluxos acima foram percorridos em navegador automatizado (Playwright): voltar do
 navegador, termos, cadastro → aprovação → login, busca, operador sem acesso
 administrativo, perfil e logout.
@@ -58,19 +68,17 @@ administrativo, perfil e logout.
 | Administrador executa ação permitida | Sucesso com registro de auditoria |
 | Login com repetidas falhas | 429 temporário e progressivo; outra conta no mesmo IP continua entrando |
 
-## Ações pendentes (fora do código)
+## O que ainda depende de vocês
 
-1. **Rotacionar a credencial do banco exposta anteriormente** (item “Imediato” do plano).
-   Não há credencial real no histórico *deste* repositório, mas o relatório indica exposição
-   anterior (ZIP analisado ou repositório antigo). Gere uma nova senha na Neon e atualize a
-   `DATABASE_URL` na Vercel e nos `.env` locais.
-2. **Aplicar o schema no banco da Neon:** `npm run db:schema`. É idempotente e migra os dados
-   existentes. Contas que já existiam continuam ativas.
-3. **Criar o primeiro administrador:** `npm run admin:criar -- --login admin`. O `POST /usuarios`
-   sem login, usado antes, agora é recusado.
-4. **SEC-19:** confirmar na documentação da Neon a criptografia em repouso e ativar/testar a
-   restauração (*point-in-time restore*) como rotina de backup.
-5. Se o site e a API ficarem em domínios diferentes, definir `FRONTEND_URL` na Vercel.
+1. **Rotacionar a senha do banco** (item “Imediato” do relatório). Não há credencial real no
+   histórico deste repositório, mas o relatório cita uma exposição anterior (ZIP analisado ou
+   repositório antigo). Na Neon: *Roles* → *Reset password*; depois atualize `DATABASE_URL` em
+   Vercel → *Settings → Environment Variables* e faça *Redeploy*. Isso exige acesso às contas da
+   Neon e da Vercel, que esta automação não tem.
+
+Nada mais precisa ser feito à mão: o schema é aplicado sozinho no deploy de produção, as contas
+existentes (inclusive o administrador `admin`) continuam ativas, e nenhuma variável de ambiente
+nova é obrigatória. `npm run admin:criar` só é necessário em um banco novo, vazio.
 
 ## Limitações conhecidas
 
