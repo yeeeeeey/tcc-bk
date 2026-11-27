@@ -2,109 +2,167 @@
 O projeto tem três partes no mesmo repositório:
 
   backend/    API em Node.js + Express (rotas de usuários, produtos, entregas...)
-  frontend/   Site em React + Vite (landing, login, cadastro e dashboard)
+  frontend/   Site em React + Vite (landing, login, cadastro e painel)
   database/   schema.sql com as tabelas do banco PostgreSQL (hospedado na Neon)
   api/        Arquivo que a Vercel usa para rodar o backend como função
-  vercel.json Configuração do deploy na Vercel
+  vercel.json Configuração do deploy na Vercel (rotas e cabeçalhos de segurança)
 
-O front chama o backend; o backend conecta no banco pela variável DATABASE_URL.
-
-git clone https://github.com/yeeeeeey/tcc-bk/tree/integracao-front-back.git
-cd tcc-bk/tree/integracao-front-back
+O front chama o backend em /api; o backend conecta no banco pela variável DATABASE_URL.
+Detalhes das correções de segurança: SEGURANCA.md
 
 
+PRIMEIRA VEZ
+============
+
+git clone <endereço do repositório>
+cd tcc-bk
+npm install
+
+Copie .env.example para .env e coloque a DATABASE_URL da Neon.
+
+npm run db:schema      cria/atualiza as tabelas (pode rodar de novo sem perder dados)
+npm run admin:criar -- --login admin --nome "Administrador"
+                       cria o primeiro administrador (a senha é pedida no terminal)
+
+
+RODAR LOCALMENTE (dois terminais)
+=================================
 
 npm run dev:backend
 "Servidor rodando em http://localhost:3000"
-
-Teste no navegador: http://localhost:3000/health
-{"status":"ok","banco":"conectado"}
+Teste no navegador: http://localhost:3000/health  ->  {"status":"ok","banco":"conectado"}
 
 npm run dev:frontend
-mostra o endereço http://localhost:5173
-
 Abra http://localhost:5173 no navegador.
+(O Vite repassa /api para o backend, então site e API ficam no mesmo endereço.)
 
-Os dois terminais precisam ficar abertos. Para parar, Ctrl + C
+Para parar, Ctrl + C nos dois.
 
 
-Para criar um ADMINISTRADOR (o cadastro do site sempre cria operador),
-use a API com o backend rodando. Troque a senha do exemplo!
+LOGIN E PERFIS
+==============
 
-PowerShell:
-Invoke-RestMethod -Uri http://localhost:3000/usuarios -Method POST -ContentType "application/json" -Body '{"login":"admin","senha":"TroqueEstaSenha123","perfil":"administrador","nome":"Administrador"}'
-
-Git Bash / Mac / Linux:
-curl -X POST http://localhost:3000/usuarios -H "Content-Type: application/json" -d '{"login":"admin","senha":"TroqueEstaSenha123","perfil":"administrador","nome":"Administrador"}'
+Toda a API exige login, menos: /, /health, /usuarios/cadastro, /usuarios/login e /usuarios/logout.
+O login cria um cookie de sessão HttpOnly (o navegador guarda, o JavaScript não lê).
 
 Perfis válidos: administrador, gerente_logistico, operador.
+  operador            consulta tudo da operação, registra rastreamento e movimentações
+  gerente_logistico   + cria/edita/exclui produtos, armazéns, entregas, transportadoras e veículos
+  administrador       + usuários, correção de rastreamento, estorno de movimentações, auditoria
+A tabela completa fica no painel em Administração > Perfis (backend/src/config/permissoes.js).
 
-git add .
-git commit 
-git push
+O cadastro do site sempre cria OPERADOR e a conta fica AGUARDANDO APROVAÇÃO.
+Um administrador aprova em Administração > Usuários > "Aguardando aprovação".
 
-comandos uteis
+Esqueceu a senha do admin? Rode de novo o admin:criar com o mesmo login:
+ele redefine a senha e garante o perfil de administrador.
+
+
+COMANDOS ÚTEIS
+==============
 
 npm install            instala tudo (raiz)
 npm run db:test        testa a conexão com o banco
 npm run db:schema      cria/atualiza as tabelas
+npm run admin:criar    cria ou promove um administrador (veja acima)
 npm run dev:backend    API local com recarga automática (porta 3000)
 npm start              API local sem recarga automática
 npm run dev:frontend   site local (porta 5173)
 npm run build          gera o site de produção em frontend/dist
+npm test               testes automatizados do backend (precisa de TEST_DATABASE_URL,
+                       um banco SÓ de testes: ele é apagado a cada execução)
 
+
+TESTAR A API PELO TERMINAL
+==========================
 
 Localmente as rotas funcionam com e sem /api na frente
 (http://localhost:3000/produtos = http://localhost:3000/api/produtos).
-Na Vercel use sempre /api: https://github.com/yeeeeeey/tcc-bk/tree/integracao-front-back.git
-cd tcc-bk/tree/integracao-front-back
+Na Vercel use sempre /api.
 
-# estado da API e do banco
-Invoke-RestMethod -Uri http://localhost:3000/health
+Como a API exige login, primeiro entre e guarde o cookie.
 
-# resumo do dashboard
-Invoke-RestMethod -Uri http://localhost:3000/dashboard
+Git Bash / Mac / Linux (curl guarda o cookie no arquivo sessao.txt):
 
-# usuários
-Invoke-RestMethod -Uri http://localhost:3000/usuarios/cadastro -Method POST -ContentType "application/json" -Body '{"nome":"Maria","email":"maria@exemplo.com","senha":"senha1234"}'
-Invoke-RestMethod -Uri http://localhost:3000/usuarios/login -Method POST -ContentType "application/json" -Body '{"login":"maria@exemplo.com","senha":"senha1234"}'
-Invoke-RestMethod -Uri http://localhost:3000/usuarios
-Invoke-RestMethod -Uri http://localhost:3000/usuarios/1
-Invoke-RestMethod -Uri http://localhost:3000/usuarios/1 -Method DELETE
+curl -c sessao.txt -H "Content-Type: application/json" -d '{"login":"admin","senha":"SUA_SENHA"}' http://localhost:3000/usuarios/login
+curl -b sessao.txt http://localhost:3000/dashboard
+curl -b sessao.txt "http://localhost:3000/produtos?pagina=1&limite=20&busca=caixa"
 
-# produtos
-Invoke-RestMethod -Uri http://localhost:3000/produtos -Method POST -ContentType "application/json" -Body '{"nome":"Caixa","descricao":"papelão","preco":2.5,"quantidade":100}'
-Invoke-RestMethod -Uri http://localhost:3000/produtos
-Invoke-RestMethod -Uri http://localhost:3000/produtos/1
-Invoke-RestMethod -Uri http://localhost:3000/produtos/1 -Method PUT -ContentType "application/json" -Body '{"quantidade":80}'
-Invoke-RestMethod -Uri http://localhost:3000/produtos/1 -Method DELETE
+PowerShell (a sessão fica na variável $s):
+
+Invoke-RestMethod -Uri http://localhost:3000/usuarios/login -Method POST -ContentType "application/json" -Body '{"login":"admin","senha":"SUA_SENHA"}' -SessionVariable s
+Invoke-RestMethod -Uri http://localhost:3000/dashboard -WebSession $s
+
+Listagens devolvem { dados, pagina, limite, total } e aceitam ?pagina=, ?limite= (até 100) e ?busca=.
+
+Exemplos (PowerShell, depois do login acima):
+
+# usuários (administrador)
+Invoke-RestMethod -Uri http://localhost:3000/usuarios -WebSession $s
+Invoke-RestMethod -Uri http://localhost:3000/usuarios -Method POST -ContentType "application/json" -Body '{"login":"maria","senha":"Senha1234","perfil":"gerente_logistico","nome":"Maria"}' -WebSession $s
+Invoke-RestMethod -Uri http://localhost:3000/usuarios/2 -Method PUT -ContentType "application/json" -Body '{"ativo":true}' -WebSession $s
 
 # armazéns
-Invoke-RestMethod -Uri http://localhost:3000/armazens
-Invoke-RestMethod -Uri http://localhost:3000/armazens -Method POST -ContentType "application/json" -Body '{"nome":"Armazém Sul","localizacao":"Curitiba, PR","capacidade_maxima":2000}'
+Invoke-RestMethod -Uri http://localhost:3000/armazens -Method POST -ContentType "application/json" -Body '{"nome":"Armazém Sul","localizacao":"Curitiba, PR","capacidade_maxima":2000}' -WebSession $s
 
-# movimentações
-Invoke-RestMethod -Uri http://localhost:3000/movimentacoes -Method POST -ContentType "application/json" -Body '{"produto_id":1,"origem":"Armazém Central","destino":"Cliente Final"}'
+# produtos (a quantidade inicial entra no armazém informado)
+Invoke-RestMethod -Uri http://localhost:3000/produtos -Method POST -ContentType "application/json" -Body '{"nome":"Caixa","descricao":"papelão","preco":2.5,"quantidade":100,"armazem_id":1}' -WebSession $s
+Invoke-RestMethod -Uri http://localhost:3000/produtos/1 -Method PUT -ContentType "application/json" -Body '{"preco":2.8}' -WebSession $s
 
-# entregas
-Invoke-RestMethod -Uri http://localhost:3000/entregas -Method POST -ContentType "application/json" -Body '{"produto_id":1,"quantidade":10,"destino":"Rua Exemplo, 123","data_prevista":"2026-12-20"}'
+# estoque por armazém (somente leitura)
+Invoke-RestMethod -Uri http://localhost:3000/estoque -WebSession $s
 
-# rastreamento (também atualiza o status da entrega)
-Invoke-RestMethod -Uri http://localhost:3000/rastreamento -Method POST -ContentType "application/json" -Body '{"entrega_id":1,"localizacao_atual":"Centro de Distribuição SP","status":"em transito"}'
-Invoke-RestMethod -Uri http://localhost:3000/rastreamento/entrega/1
+# movimentações (mudam os saldos; sem PUT: um erro se corrige com estorno = DELETE, só admin)
+#   armazem_origem_id + armazem_destino_id = transferência
+#   só armazem_destino_id = entrada (ex.: fornecedor)  |  só armazem_origem_id = saída
+Invoke-RestMethod -Uri http://localhost:3000/movimentacoes -Method POST -ContentType "application/json" -Body '{"produto_id":1,"quantidade":10,"armazem_origem_id":1,"armazem_destino_id":2}' -WebSession $s
+Invoke-RestMethod -Uri http://localhost:3000/movimentacoes -Method POST -ContentType "application/json" -Body '{"produto_id":1,"quantidade":50,"armazem_destino_id":1,"origem":"Fornecedor X"}' -WebSession $s
 
-# transportadoras
-Invoke-RestMethod -Uri http://localhost:3000/transportadoras -Method POST -ContentType "application/json" -Body '{"nome":"Transportadora Veloz","cnpj":"98.765.432/0001-10","contato":"(11) 98888-7777"}'
+# entregas (reservam o estoque; nascem "pendente"; sem saldo = erro 409)
+Invoke-RestMethod -Uri http://localhost:3000/entregas -Method POST -ContentType "application/json" -Body '{"produto_id":1,"quantidade":10,"destino":"Rua Exemplo, 123","data_prevista":"2026-12-20"}' -WebSession $s
 
-# veículos
-Invoke-RestMethod -Uri http://localhost:3000/veiculos -Method POST -ContentType "application/json" -Body '{"placa":"ABC1D23","modelo":"VUC","capacidade_carga":3500,"transportadora_id":1}'
+# rastreamento (é o ÚNICO jeito de mudar o status da entrega)
+#   pendente -> processando | em transito | cancelado
+#   processando -> em transito | cancelado
+#   em transito -> em transito | entregue | cancelado      (cancelado devolve o estoque)
+Invoke-RestMethod -Uri http://localhost:3000/rastreamento -Method POST -ContentType "application/json" -Body '{"entrega_id":1,"localizacao_atual":"Centro de Distribuição SP","status":"em transito"}' -WebSession $s
+Invoke-RestMethod -Uri http://localhost:3000/rastreamento/entrega/1 -WebSession $s
+
+# transportadoras e veículos (CNPJ e placa são validados)
+Invoke-RestMethod -Uri http://localhost:3000/transportadoras -Method POST -ContentType "application/json" -Body '{"nome":"Transportadora Veloz","cnpj":"11.222.333/0001-81","contato":"(11) 98888-7777"}' -WebSession $s
+Invoke-RestMethod -Uri http://localhost:3000/veiculos -Method POST -ContentType "application/json" -Body '{"placa":"ABC1D23","modelo":"VUC","capacidade_carga":3500,"transportadora_id":1}' -WebSession $s
+
+# busca geral e auditoria
+Invoke-RestMethod -Uri "http://localhost:3000/busca?q=caixa" -WebSession $s
+Invoke-RestMethod -Uri http://localhost:3000/auditoria -WebSession $s
+
+# sair
+Invoke-RestMethod -Uri http://localhost:3000/usuarios/logout -Method POST -WebSession $s
 
 Nas rotas PUT, mande só os campos que quer mudar; os outros ficam iguais.
+DELETE em produtos, armazéns, entregas etc. é exclusão lógica: some das telas, o histórico fica.
 
+
+PROBLEMAS COMUNS
+================
 
 Site mostra "Não foi possível conectar ao servidor"
-O backend não está rodando 
+    O backend não está rodando (npm run dev:backend).
 
-Login ou cadastro dão "Erro ao..." (status 500)
-    Rode "npm run db:schema" para recriar o banco se tiver algo faltando
+Erro 401 "Faça login para continuar"
+    Sessão ausente ou expirada (dura 8 horas). Entre de novo.
 
+Erro 403 "Seu perfil não tem permissão"
+    O perfil logado não pode fazer aquilo (veja LOGIN E PERFIS).
+
+Login dá "Sua conta ainda não foi aprovada"
+    Um administrador precisa ativar a conta em Administração > Usuários.
+
+Login dá "Muitas tentativas de login"
+    Proteção contra adivinhação de senha. Espere o tempo indicado.
+
+Erro 400 "Dados inválidos — ..."
+    A mensagem diz qual campo está errado e por quê.
+
+Erro de banco ao subir a API depois de atualizar o código
+    Rode "npm run db:schema" para aplicar as tabelas e colunas novas.

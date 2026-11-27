@@ -1,11 +1,17 @@
-
 import React, { useEffect, useState } from "react";
 import {
   LayoutDashboard, Package, Warehouse, Truck as TruckIcon, Search as SearchIcon,
-  ClipboardList, AlertTriangle, Users, Shield, Settings, Bell,
-  HelpCircle, CheckCircle2, Clock, Car, MapPin, LogOut, RefreshCw,
+  ClipboardList, AlertTriangle, Users, Shield, Bell, Boxes, ArrowLeftRight, ScrollText,
+  CircleUser, CheckCircle2, Clock, Car, MapPin, LogOut, RefreshCw,
 } from "lucide-react";
-import { buscarDashboard, listar } from "./api";
+import { buscarDashboard } from "./api";
+import { navegar } from "./rotas";
+import ListaRecurso from "./painel/ListaRecurso";
+import ResultadosBusca from "./painel/ResultadosBusca";
+import GestaoUsuarios from "./painel/GestaoUsuarios";
+import MeuPerfil from "./painel/MeuPerfil";
+import Perfis from "./painel/Perfis";
+import { NOMES_PERFIL, formatarData, nomeDoStatus } from "./painel/formatacao";
  
 // ---------------------------------------------------------------------------
 // Tela de Dashboard, primeira tela após o login. Mesma paleta do restante do
@@ -13,76 +19,92 @@ import { buscarDashboard, listar } from "./api";
 // (#22D3EE), Space Grotesk nos títulos, Inter no corpo.
 // ---------------------------------------------------------------------------
  
+// Cada item tem uma URL própria (/app/<slug>) e a permissão necessária para vê-lo.
+// Esconder o item é só conveniência: o backend recusa (403) quem não tem permissão.
 const navGroups = [
   {
     titulo: null,
-    items: [{ label: "Dashboard", Icon: LayoutDashboard, active: true }],
+    items: [{ slug: "dashboard", label: "Dashboard", Icon: LayoutDashboard, permissao: "dashboard:ler" }],
   },
   {
     titulo: "Operações",
     items: [
-      { label: "Produtos", Icon: Package },
-      { label: "Armazém", Icon: Warehouse },
-      { label: "Logística", Icon: TruckIcon },
-      { label: "Rastreamento", Icon: SearchIcon },
+      { slug: "produtos", label: "Produtos", Icon: Package, permissao: "produtos:ler" },
+      { slug: "armazens", label: "Armazém", Icon: Warehouse, permissao: "armazens:ler" },
+      { slug: "estoque", label: "Estoque", Icon: Boxes, permissao: "estoque:ler" },
+      { slug: "entregas", label: "Logística", Icon: TruckIcon, permissao: "entregas:ler" },
+      { slug: "rastreamento", label: "Rastreamento", Icon: SearchIcon, permissao: "rastreamento:ler" },
+      { slug: "movimentacoes", label: "Movimentações", Icon: ArrowLeftRight, permissao: "movimentacoes:ler" },
     ],
   },
   {
     titulo: "Gestão",
     items: [
-      { label: "Relatórios", Icon: ClipboardList },
-      { label: "Alertas", Icon: AlertTriangle },
-      { label: "Transportadora", Icon: TruckIcon },
-      { label: "Veículos", Icon: Car },
+      { slug: "relatorios", label: "Relatórios", Icon: ClipboardList, permissao: "dashboard:ler" },
+      { slug: "alertas", label: "Alertas", Icon: AlertTriangle, permissao: "dashboard:ler" },
+      { slug: "transportadoras", label: "Transportadora", Icon: TruckIcon, permissao: "transportadoras:ler" },
+      { slug: "veiculos", label: "Veículos", Icon: Car, permissao: "veiculos:ler" },
     ],
   },
   {
     titulo: "Administração",
     items: [
-      { label: "Usuários", Icon: Users },
-      { label: "Perfis", Icon: Shield },
-      { label: "Configuração", Icon: Settings },
+      { slug: "usuarios", label: "Usuários", Icon: Users, permissao: "usuarios:ler" },
+      { slug: "perfis", label: "Perfis", Icon: Shield, permissao: "perfis:ler" },
+      { slug: "auditoria", label: "Auditoria", Icon: ScrollText, permissao: "auditoria:ler" },
     ],
   },
+  {
+    titulo: "Conta",
+    items: [{ slug: "perfil", label: "Meu perfil", Icon: CircleUser, permissao: null }],
+  },
 ];
- 
+
+const TODOS_OS_ITENS = navGroups.flatMap((grupo) => grupo.items);
+
 // Telas do menu que listam dados direto da API: [coluna da API, título da coluna]
 const PAGINAS_DE_LISTA = {
-  Produtos: {
+  produtos: {
     recurso: "produtos",
-    colunas: [["id", "#"], ["nome", "Nome"], ["descricao", "Descrição"], ["preco", "Preço"], ["quantidade", "Qtd."]],
+    colunas: [["id", "#"], ["nome", "Nome"], ["codigo", "Código"], ["categoria", "Categoria"], ["preco", "Preço"], ["quantidade", "Qtd. total"]],
   },
-  "Armazém": {
+  armazens: {
     recurso: "armazens",
-    colunas: [["id", "#"], ["nome", "Nome"], ["localizacao", "Localização"], ["capacidade_maxima", "Capacidade"], ["status", "Status"]],
+    colunas: [["id", "#"], ["nome", "Nome"], ["localizacao", "Localização"], ["ocupacao", "Ocupação"], ["capacidade_maxima", "Capacidade"], ["status", "Status"]],
   },
-  "Logística": {
+  estoque: {
+    recurso: "estoque",
+    colunas: [["armazem_nome", "Armazém"], ["produto_nome", "Produto"], ["produto_codigo", "Código"], ["quantidade_disponivel", "Disponível"]],
+  },
+  entregas: {
     recurso: "entregas",
-    colunas: [["id", "#"], ["produto_id", "Produto"], ["quantidade", "Qtd."], ["destino", "Destino"], ["data_prevista", "Previsão"], ["status", "Status"]],
+    colunas: [["id", "#"], ["produto_nome", "Produto"], ["quantidade", "Qtd."], ["armazem_nome", "Saída de"], ["destino", "Destino"], ["data_prevista", "Previsão"], ["status", "Status"]],
   },
-  Rastreamento: {
+  rastreamento: {
     recurso: "rastreamento",
     colunas: [["id", "#"], ["entrega_id", "Entrega"], ["localizacao_atual", "Localização"], ["data_hora", "Data/hora"], ["status", "Status"]],
   },
-  Transportadora: {
+  movimentacoes: {
+    recurso: "movimentacoes",
+    colunas: [["id", "#"], ["produto_nome", "Produto"], ["quantidade", "Qtd."], ["origem", "Origem"], ["destino", "Destino"], ["data_movimentacao", "Data"], ["estornado_em", "Estornada em"]],
+  },
+  transportadoras: {
     recurso: "transportadoras",
     colunas: [["id", "#"], ["nome", "Nome"], ["cnpj", "CNPJ"], ["contato", "Contato"]],
   },
-  "Veículos": {
+  veiculos: {
     recurso: "veiculos",
-    colunas: [["id", "#"], ["placa", "Placa"], ["modelo", "Modelo"], ["capacidade_carga", "Capacidade"], ["status", "Status"], ["transportadora_id", "Transportadora"]],
+    colunas: [["id", "#"], ["placa", "Placa"], ["modelo", "Modelo"], ["capacidade_carga", "Capacidade"], ["status", "Status"], ["transportadora_nome", "Transportadora"]],
   },
-  "Usuários": {
-    recurso: "usuarios",
-    colunas: [["id", "#"], ["nome", "Nome"], ["login", "Login"], ["email", "E-mail"], ["perfil", "Perfil"]],
+  auditoria: {
+    recurso: "auditoria",
+    colunas: [["criado_em", "Data/hora"], ["usuario_login", "Usuário"], ["perfil", "Perfil"], ["acao", "Ação"], ["recurso", "Recurso"], ["recurso_id", "ID"], ["resultado", "Resultado"], ["ip", "IP"]],
   },
 };
 
-const NOMES_PERFIL = {
-  administrador: "Administrador",
-  gerente_logistico: "Gerente logístico",
-  operador: "Operador",
-};
+function caminhoDa(slug) {
+  return slug === "dashboard" ? "/app" : `/app/${slug}`;
+}
 
 const CORES_STATUS = {
   entregue: "#4ADE80",
@@ -90,32 +112,9 @@ const CORES_STATUS = {
   processando: "#A78BFA",
   pendente: "#FACC15",
   atrasado: "#F87171",
+  cancelado: "#94A3B8",
 };
 const CORES_EXTRAS = ["#22D3EE", "#FB923C", "#C084FC"];
-
-function nomeDoStatus(status) {
-  if (!status) return "—";
-  const texto = status === "em transito" ? "em trânsito" : status;
-  return texto.charAt(0).toUpperCase() + texto.slice(1);
-}
-
-// "2026-09-25" (ou "2026-09-25T00:00:00.000Z") -> "25/09/2026"; data e hora -> "25/09/2026 14:30"
-function formatarData(valor) {
-  if (!valor) return "—";
-  const soDia = String(valor).match(/^(\d{4}-\d{2}-\d{2})(T00:00:00(\.000)?Z)?$/);
-  if (soDia) return soDia[1].split("-").reverse().join("/");
-  const data = new Date(valor);
-  if (Number.isNaN(data.getTime())) return String(valor);
-  return data.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
-}
-
-function formatarCelula(chave, valor) {
-  if (valor === null || valor === undefined || valor === "") return "—";
-  if (chave.startsWith("data")) return formatarData(valor);
-  if (chave === "status") return nomeDoStatus(valor);
-  if (chave === "perfil") return NOMES_PERFIL[valor] || valor;
-  return String(valor);
-}
 
 function montarAlertas(alertas) {
   if (!alertas) return [];
@@ -139,58 +138,16 @@ const toneColors = {
   cyan: { bg: "rgba(34,211,238,0.14)", bar: "#22D3EE", text: "#67E8F9" },
 };
  
-// Tabela simples com os registros de um recurso da API
-function ListaRecurso({ titulo, recurso, colunas }) {
-  const [linhas, setLinhas] = useState(null);
-  const [erro, setErro] = useState("");
+export default function DashboardScreen({ usuario, pagina = "dashboard", query = "", onSair, onUsuarioAtualizado }) {
+  const activeItem = pagina;
+  const setActiveItem = (slug) => navegar(caminhoDa(slug));
+  const parametros = new URLSearchParams(query);
+  const permissoes = new Set(usuario?.permissoes || []);
+  const pode = (permissao) => !permissao || permissoes.has(permissao);
+  const itensPorPagina = usuario?.preferencias?.itens_por_pagina || 20;
 
-  useEffect(() => {
-    let ativo = true;
-    listar(recurso)
-      .then((dados) => ativo && setLinhas(dados))
-      .catch((e) => ativo && setErro(e.message));
-    return () => {
-      ativo = false;
-    };
-  }, [recurso]);
-
-  return (
-    <div className="db-panel">
-      <div className="db-panel-head">
-        <span className="db-panel-title">{titulo}</span>
-        {linhas && <span className="db-track-pill">{linhas.length} registro(s)</span>}
-      </div>
-      {erro && <p className="db-msg erro">{erro}</p>}
-      {!erro && !linhas && <p className="db-msg">Carregando...</p>}
-      {linhas && linhas.length === 0 && <p className="db-msg">Nenhum registro cadastrado ainda.</p>}
-      {linhas && linhas.length > 0 && (
-        <div className="db-table-wrap">
-          <table className="db-table">
-            <thead>
-              <tr>
-                {colunas.map(([chave, rotulo]) => (
-                  <th key={chave}>{rotulo}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {linhas.map((linha) => (
-                <tr key={linha.id}>
-                  {colunas.map(([chave]) => (
-                    <td key={chave}>{formatarCelula(chave, linha[chave])}</td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
-
-export default function DashboardScreen({ usuario, onSair }) {
-  const [activeItem, setActiveItem] = useState("Dashboard");
+  const [termoBusca, setTermoBusca] = useState(pagina === "busca" ? parametros.get("q") || "" : "");
+  const [erroBusca, setErroBusca] = useState("");
   const [dados, setDados] = useState(null);
   const [erro, setErro] = useState("");
   const [versao, setVersao] = useState(0);
@@ -209,6 +166,17 @@ export default function DashboardScreen({ usuario, onSair }) {
     };
   }, [versao]);
 
+  function buscar(evento) {
+    evento.preventDefault();
+    const termo = termoBusca.trim();
+    if (termo.length < 2) {
+      setErroBusca("Digite pelo menos 2 caracteres.");
+      return;
+    }
+    setErroBusca("");
+    navegar(`/app/busca?q=${encodeURIComponent(termo)}`);
+  }
+
   const nomeUsuario = usuario?.nome || usuario?.login || "usuário";
   const primeiroNome = nomeUsuario.split(" ")[0];
   const inicial = nomeUsuario.charAt(0).toUpperCase();
@@ -216,10 +184,10 @@ export default function DashboardScreen({ usuario, onSair }) {
   const totais = dados?.totais;
   const stats = totais
     ? [
-        { label: "Produtos cadastrados", value: totais.produtos, link: "Ver produtos", pagina: "Produtos", Icon: Package },
-        { label: "Armazéns ativos", value: totais.armazens_ativos, link: "Ver detalhes", pagina: "Armazém", Icon: Warehouse },
+        { label: "Produtos cadastrados", value: totais.produtos, link: "Ver produtos", pagina: "produtos", Icon: Package },
+        { label: "Armazéns ativos", value: totais.armazens_ativos, link: "Ver detalhes", pagina: "armazens", Icon: Warehouse },
         { label: "Em trânsito", value: totais.em_transito, Icon: TruckIcon },
-        { label: "Entregas", value: totais.entregas, link: "Ver entregas", pagina: "Logística", Icon: CheckCircle2 },
+        { label: "Entregas", value: totais.entregas, link: "Ver entregas", pagina: "entregas", Icon: CheckCircle2 },
         { label: "Atrasos", value: totais.atrasos, Icon: Clock },
       ]
     : [];
@@ -249,7 +217,10 @@ export default function DashboardScreen({ usuario, onSair }) {
   const alerts = montarAlertas(dados?.alertas);
   const entrega = dados?.entrega_em_destaque;
   const historico = entrega?.historico || [];
-  const paginaDeLista = PAGINAS_DE_LISTA[activeItem];
+  const itemAtual = TODOS_OS_ITENS.find((item) => item.slug === activeItem);
+  const semPermissao = itemAtual && !pode(itemAtual.permissao);
+  const paginaDeLista = !semPermissao && PAGINAS_DE_LISTA[activeItem];
+  const buscaDaUrl = parametros.get("busca") || "";
 
   return (
     <div
@@ -432,6 +403,59 @@ export default function DashboardScreen({ usuario, onSair }) {
         .db-table td { padding: 11px 12px; color: #C9C3E0; border-bottom: 1px solid rgba(255,255,255,0.05); }
         .db-table tr:hover td { background: rgba(255,255,255,0.02); }
 
+        a.db-nav-item { text-decoration: none; }
+        button.db-icon-btn { background: none; border: none; padding: 0; display: inline-flex; }
+        button.db-avatar { border: none; color: #fff; cursor: pointer; font-family: inherit; }
+        .db-search { position: relative; }
+        .db-search-erro { position: absolute; left: 12px; bottom: -18px; font-size: 11px; color: #FCA5A5; }
+        .db-main > .db-panel, .db-main > form.db-panel, .db-main > .db-row-2 { margin-bottom: 16px; }
+        .db-panel-head-wrap { flex-wrap: wrap; gap: 12px; }
+        .db-lista-ferramentas { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .db-filtro {
+          display: flex; align-items: center; gap: 8px; color: #6E6890;
+          background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09); border-radius: 9px; padding: 6px 10px;
+        }
+        .db-filtro input { background: transparent; border: none; outline: none; color: #F4F2FB; font-size: 13px; width: 170px; font-family: inherit; }
+        .db-paginacao { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 14px; font-size: 12.5px; color: #8981A8; }
+        .db-btn {
+          display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 9px; border: none;
+          background: linear-gradient(135deg,#8B5CF6,#7C3AED); color: #fff; font-size: 13px; font-weight: 600;
+          cursor: pointer; font-family: inherit;
+        }
+        .db-btn:disabled { opacity: .5; cursor: not-allowed; }
+        .db-btn.secundario { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.12); color: #C9C3E0; font-weight: 500; }
+        .db-btn.secundario:hover:not(:disabled) { background: rgba(255,255,255,0.08); }
+        .db-btn.perigo { color: #FCA5A5; border-color: rgba(248,113,113,0.35); }
+        .db-input {
+          display: block; width: 100%; margin-top: 6px; padding: 9px 11px; border-radius: 9px; outline: none;
+          background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.12); color: #F4F2FB;
+          font-size: 13.5px; font-family: inherit;
+        }
+        .db-input:focus { border-color: #8B5CF6; }
+        .db-input:disabled { opacity: .6; }
+        .db-input option { background: #100B20; }
+        .db-input-compacto { display: inline-block; width: auto; margin-top: 0; padding: 6px 8px; font-size: 12.5px; }
+        .db-form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
+        .db-form-grid.uma-coluna { grid-template-columns: 1fr; }
+        .db-form-grid label { font-size: 12px; color: #8981A8; font-weight: 600; }
+        .db-dica { font-size: 12px; color: #6E6890; margin: 12px 0; }
+        .db-msg.sucesso {
+          color: #86EFAC; background: rgba(74,222,128,0.1); border: 1px solid rgba(74,222,128,0.3);
+          border-radius: 10px; padding: 10px 14px; margin-bottom: 16px;
+        }
+        .db-acoes { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+        .db-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+        .db-segmentos { display: inline-flex; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09); border-radius: 10px; padding: 3px; }
+        .db-segmentos button { background: none; border: none; color: #9891B5; font-size: 12.5px; padding: 6px 12px; border-radius: 8px; cursor: pointer; font-family: inherit; }
+        .db-segmentos button.ativo { background: rgba(139,92,246,0.25); color: #F4F2FB; }
+        .db-busca-item {
+          display: flex; flex-direction: column; gap: 2px; width: 100%; text-align: left; margin-bottom: 8px;
+          background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px;
+          padding: 10px 12px; color: #E9E6F5; cursor: pointer; font-family: inherit; font-size: 13px;
+        }
+        .db-busca-item:hover { border-color: rgba(139,92,246,0.4); }
+        .db-busca-item span { font-size: 11.5px; color: #8981A8; }
+
         @media (max-width: 1100px) {
           .db-stats-grid { grid-template-columns: repeat(3, 1fr); }
           .db-row-2 { grid-template-columns: 1fr; }
@@ -457,21 +481,33 @@ export default function DashboardScreen({ usuario, onSair }) {
           Trilha
         </div>
  
-        {navGroups.map((group, gi) => (
-          <div key={gi}>
-            {group.titulo && <p className="db-nav-group-title">{group.titulo}</p>}
-            {group.items.map(({ label, Icon }) => (
-              <button
-                key={label}
-                className={`db-nav-item ${activeItem === label ? "active" : ""}`}
-                onClick={() => setActiveItem(label)}
-              >
-                <Icon size={17} />
-                {label}
-              </button>
-            ))}
-          </div>
-        ))}
+        <nav aria-label="Menu do painel">
+          {navGroups.map((group, gi) => {
+            const itens = group.items.filter((item) => pode(item.permissao));
+            if (itens.length === 0) return null;
+            return (
+              <div key={gi}>
+                {group.titulo && <p className="db-nav-group-title">{group.titulo}</p>}
+                {itens.map(({ slug, label, Icon }) => (
+                  <a
+                    key={slug}
+                    href={caminhoDa(slug)}
+                    className={`db-nav-item ${activeItem === slug ? "active" : ""}`}
+                    aria-current={activeItem === slug ? "page" : undefined}
+                    onClick={(e) => {
+                      if (e.ctrlKey || e.metaKey || e.shiftKey) return;
+                      e.preventDefault();
+                      setActiveItem(slug);
+                    }}
+                  >
+                    <Icon size={17} />
+                    {label}
+                  </a>
+                ))}
+              </div>
+            );
+          })}
+        </nav>
  
         <div className="db-sidebar-footer">
           <span className="db-avatar">{inicial}</span>
@@ -496,23 +532,40 @@ export default function DashboardScreen({ usuario, onSair }) {
             </div>
           </div>
  
-          <div className="db-search">
+          <form className="db-search" role="search" onSubmit={buscar}>
             <SearchIcon size={15} />
-            <input placeholder="Buscar produtos, pedidos, armazéns..." />
-          </div>
+            <input
+              type="search"
+              placeholder="Buscar produtos, entregas, armazéns..."
+              aria-label="Buscar no sistema"
+              maxLength={100}
+              value={termoBusca}
+              onChange={(e) => {
+                setTermoBusca(e.target.value);
+                if (erroBusca) setErroBusca("");
+              }}
+            />
+            {erroBusca && <span className="db-search-erro" role="alert">{erroBusca}</span>}
+          </form>
  
           <div className="db-topbar-icons">
-            <span className="db-icon-btn" title="Atualizar dados" onClick={() => setVersao((v) => v + 1)}>
+            <button type="button" className="db-icon-btn" title="Atualizar dados" aria-label="Atualizar dados" onClick={() => setVersao((v) => v + 1)}>
               <RefreshCw size={18} />
-            </span>
-            <span className="db-icon-btn" title="Alertas" onClick={() => setActiveItem("Alertas")}>
+            </button>
+            <button type="button" className="db-icon-btn" title="Alertas" aria-label="Alertas" onClick={() => setActiveItem("alertas")}>
               <Bell size={19} />
               {alerts.length > 0 && <span className="db-badge">{alerts.length}</span>}
-            </span>
-            <span className="db-icon-btn">
-              <HelpCircle size={19} />
-            </span>
-            <span className="db-avatar" style={{ width: 32, height: 32, fontSize: 12 }}>{inicial}</span>
+            </button>
+            <button
+              type="button"
+              className="db-avatar"
+              style={{ width: 32, height: 32, fontSize: 12 }}
+              title="Meu perfil"
+              aria-label="Meu perfil"
+              onClick={() => setActiveItem("perfil")}
+            >
+              {inicial}
+            </button>
           </div>
         </div>
  
@@ -523,11 +576,48 @@ export default function DashboardScreen({ usuario, onSair }) {
           </p>
         )}
 
-        {paginaDeLista && (
-          <ListaRecurso key={paginaDeLista.recurso} titulo={activeItem} {...paginaDeLista} />
+        {semPermissao && (
+          <div className="db-panel">
+            <p className="db-msg">Seu perfil não tem acesso a esta tela.</p>
+          </div>
         )}
 
-        {activeItem === "Alertas" && (
+        {!itemAtual && activeItem !== "busca" && (
+          <div className="db-panel">
+            <p className="db-msg">Página não encontrada.</p>
+          </div>
+        )}
+
+        {paginaDeLista && (
+          <ListaRecurso
+            key={`${paginaDeLista.recurso}:${buscaDaUrl}`}
+            titulo={itemAtual.label}
+            limite={itensPorPagina}
+            buscaInicial={buscaDaUrl}
+            {...paginaDeLista}
+          />
+        )}
+
+        {activeItem === "busca" && <ResultadosBusca key={parametros.get("q") || ""} termo={parametros.get("q") || ""} />}
+
+        {activeItem === "usuarios" && !semPermissao && (
+          <GestaoUsuarios usuarioLogado={usuario} limite={itensPorPagina} buscaInicial={buscaDaUrl} />
+        )}
+
+        {activeItem === "perfis" && !semPermissao && <Perfis />}
+
+        {activeItem === "perfil" && <MeuPerfil usuario={usuario} onAtualizado={onUsuarioAtualizado} />}
+
+        {activeItem === "relatorios" && (
+          <div className="db-panel">
+            <div className="db-panel-head">
+              <span className="db-panel-title">Relatórios</span>
+            </div>
+            <p className="db-msg">Esta tela ainda está em construção.</p>
+          </div>
+        )}
+
+        {activeItem === "alertas" && (
           <div className="db-panel">
             <div className="db-panel-head">
               <span className="db-panel-title">Alertas</span>
@@ -548,18 +638,9 @@ export default function DashboardScreen({ usuario, onSair }) {
           </div>
         )}
 
-        {!paginaDeLista && !["Dashboard", "Alertas"].includes(activeItem) && (
-          <div className="db-panel">
-            <div className="db-panel-head">
-              <span className="db-panel-title">{activeItem}</span>
-            </div>
-            <p className="db-msg">Esta tela ainda está em construção.</p>
-          </div>
-        )}
+        {activeItem === "dashboard" && !dados && !erro && <p className="db-msg">Carregando dados...</p>}
 
-        {activeItem === "Dashboard" && !dados && !erro && <p className="db-msg">Carregando dados...</p>}
-
-        {activeItem === "Dashboard" && dados && (
+        {activeItem === "dashboard" && dados && (
           <>
             {/* STATS */}
             <div className="db-stats-grid">
@@ -584,7 +665,7 @@ export default function DashboardScreen({ usuario, onSair }) {
               <div className="db-panel">
                 <div className="db-panel-head">
                   <span className="db-panel-title">Rastreamento em tempo real</span>
-                  <button className="db-panel-link" onClick={() => setActiveItem("Rastreamento")}>ver todos</button>
+                  <button className="db-panel-link" onClick={() => setActiveItem("rastreamento")}>ver todos</button>
                 </div>
 
                 {!entrega && <p className="db-msg">Nenhuma entrega cadastrada ainda.</p>}
@@ -640,7 +721,7 @@ export default function DashboardScreen({ usuario, onSair }) {
               <div className="db-panel">
                 <div className="db-panel-head">
                   <span className="db-panel-title">Alertas recentes</span>
-                  <button className="db-panel-link" onClick={() => setActiveItem("Alertas")}>ver todos</button>
+                  <button className="db-panel-link" onClick={() => setActiveItem("alertas")}>ver todos</button>
                 </div>
                 {alerts.length === 0 && <p className="db-msg">Nenhum alerta no momento.</p>}
                 {alerts.slice(0, 4).map((a, i) => {
@@ -689,7 +770,7 @@ export default function DashboardScreen({ usuario, onSair }) {
                   <span className="db-panel-title">Estoque por armazém</span>
                   <button
                     className="db-panel-link"
-                    onClick={() => setActiveItem("Armazém")}
+                    onClick={() => setActiveItem("armazens")}
                     style={{ color: "#67E8F9", background: "rgba(34,211,238,0.1)", borderColor: "rgba(34,211,238,0.3)" }}
                   >
                     ver todos

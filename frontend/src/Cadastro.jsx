@@ -1,5 +1,7 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { cadastrar } from "./api";
+import { TermosModal } from "./Termos";
+import { MENSAGEM_SENHA, cnpjValido, emailValido, mascararCnpj, senhaValida } from "./validacao";
 
 const styles = `
   .signup-root{
@@ -179,39 +181,7 @@ const styles = `
   .btn-primary:active{ transform:scale(.99); }
   .btn-primary:disabled{ opacity:.55; cursor:not-allowed; }
 
-  .divider{
-    display:flex;
-    align-items:center;
-    gap:12px;
-    margin:18px 0 14px;
-    color:var(--text-muted);
-    font-size:11.5px;
-  }
-  .divider::before, .divider::after{
-    content:"";
-    flex:1;
-    height:1px;
-    background:#332f57;
-  }
 
-  .oauth-row{ display:flex; gap:12px; }
-  .btn-oauth{
-    flex:1;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    gap:8px;
-    padding:11px;
-    border-radius:9px;
-    border:1px solid #332f57;
-    background:#1a1738;
-    color:var(--text-main);
-    font-size:14px;
-    cursor:pointer;
-    transition:background .15s ease;
-  }
-  .btn-oauth:hover{ background:#221f47; }
-  .btn-oauth svg{ width:17px; height:17px; }
 
   .status-banner{
     display:none;
@@ -298,23 +268,6 @@ const EYE_CLOSED = (
   </>
 );
 
-function maskCNPJ(raw) {
-  let v = raw.replace(/\D/g, "").slice(0, 14);
-  v = v.replace(/^(\d{2})(\d)/, "$1.$2");
-  v = v.replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3");
-  v = v.replace(/\.(\d{3})(\d)/, ".$1/$2");
-  v = v.replace(/(\d{4})(\d{1,2})$/, "$1-$2");
-  return v;
-}
-
-function validEmail(v) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
-}
-
-function validCNPJDigits(v) {
-  return v.replace(/\D/g, "").length === 14;
-}
-
 export default function SignupForm({ onGoToLogin, onVoltar }) {
   const [nome, setNome] = useState("");
   const [cnpj, setCnpj] = useState("");
@@ -329,6 +282,8 @@ export default function SignupForm({ onGoToLogin, onVoltar }) {
   const [submitted, setSubmitted] = useState(false);
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [mostrarTermos, setMostrarTermos] = useState(false);
+  const fecharTermos = useCallback(() => setMostrarTermos(false), []);
 
   function handleNaoEmpresaChange(e) {
     const checked = e.target.checked;
@@ -340,7 +295,7 @@ export default function SignupForm({ onGoToLogin, onVoltar }) {
   }
 
   function handleCnpjChange(e) {
-    setCnpj(maskCNPJ(e.target.value));
+    setCnpj(mascararCnpj(e.target.value));
   }
 
   async function handleSubmit(e) {
@@ -357,18 +312,18 @@ export default function SignupForm({ onGoToLogin, onVoltar }) {
     }
 
     if (!naoEmpresa) {
-      if (!validCNPJDigits(cnpj)) {
+      if (!cnpjValido(cnpj)) {
         newErrors.cnpj = true;
         valid = false;
       }
     }
 
-    if (!validEmail(email)) {
+    if (!emailValido(email.trim())) {
       newErrors.email = true;
       valid = false;
     }
 
-    if (senha.length < 8) {
+    if (!senhaValida(senha)) {
       newErrors.senha = true;
       valid = false;
     }
@@ -385,7 +340,7 @@ export default function SignupForm({ onGoToLogin, onVoltar }) {
     try {
       const usuario = await cadastrar({
         nome: nome.trim(),
-        email: email.trim(),
+        email: email.trim().toLowerCase(),
         senha,
         cnpj: naoEmpresa ? null : cnpj,
       });
@@ -395,6 +350,7 @@ export default function SignupForm({ onGoToLogin, onVoltar }) {
         tipo: usuario.cnpj ? "Empresa" : "Pessoa física",
         cnpj: usuario.cnpj,
         email: usuario.email,
+        mensagem: usuario.mensagem,
       });
       setSubmitted(true);
     } catch (erro) {
@@ -421,6 +377,17 @@ export default function SignupForm({ onGoToLogin, onVoltar }) {
   return (
     <div className="signup-root">
       <style>{styles}</style>
+
+      {mostrarTermos && (
+        <TermosModal
+          onFechar={fecharTermos}
+          onAceitar={() => {
+            setTermos(true);
+            setErrors((prev) => ({ ...prev, termos: false }));
+            setMostrarTermos(false);
+          }}
+        />
+      )}
 
       <div className="card">
         <div className="art-panel">
@@ -473,15 +440,10 @@ export default function SignupForm({ onGoToLogin, onVoltar }) {
                         checked={naoEmpresa}
                         onChange={handleNaoEmpresaChange}
                       />
-                      <label htmlFor="naoEmpresa">
-                        Não sou uma{" "}
-                        <a href="#" onClick={(e) => e.preventDefault()}>
-                          empresa
-                        </a>
-                      </label>
+                      <label htmlFor="naoEmpresa">Não sou uma empresa</label>
                     </div>
                     <div className={`field-error${errors.cnpj ? " show" : ""}`}>
-                      Informe um CNPJ válido (14 dígitos).
+                      Informe um CNPJ válido.
                     </div>
                   </div>
                 </div>
@@ -527,7 +489,7 @@ export default function SignupForm({ onGoToLogin, onVoltar }) {
                     </svg>
                   </button>
                   <div className={`field-error${errors.senha ? " show" : ""}`}>
-                    Mínimo de 8 caracteres.
+                    {MENSAGEM_SENHA}
                   </div>
                 </div>
 
@@ -540,7 +502,13 @@ export default function SignupForm({ onGoToLogin, onVoltar }) {
                   />
                   <label htmlFor="termos">
                     Eu aceito os{" "}
-                    <a href="#" onClick={(e) => e.preventDefault()}>
+                    <a
+                      href="/termos"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setMostrarTermos(true);
+                      }}
+                    >
                       termos de uso
                     </a>
                   </label>
@@ -560,54 +528,6 @@ export default function SignupForm({ onGoToLogin, onVoltar }) {
                   <div className="status-banner show erro" role="alert">{statusMessage}</div>
                 )}
               </form>
-
-              <div className="divider">ou registre-se com</div>
-
-              <div className="oauth-row">
-                <button
-                  type="button"
-                  className="btn-oauth"
-                  onClick={() =>
-                    setStatusMessage(
-                      "Cadastro com Google ainda não configurado nesta demo."
-                    )
-                  }
-                >
-                  <svg viewBox="0 0 48 48">
-                    <path
-                      fill="#FFC107"
-                      d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6 29.6 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z"
-                    />
-                    <path
-                      fill="#FF3D00"
-                      d="M6.3 14.7l6.6 4.8C14.5 16 18.9 13 24 13c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6 29.6 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"
-                    />
-                    <path
-                      fill="#4CAF50"
-                      d="M24 44c5.5 0 10.4-1.9 14.3-5.1l-6.6-5.6C29.7 34.9 27 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.6 5.1C9.6 39.6 16.3 44 24 44z"
-                    />
-                    <path
-                      fill="#1976D2"
-                      d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.2-4.1 5.5l6.6 5.6C41.5 36 44 30.5 44 24c0-1.3-.1-2.7-.4-3.5z"
-                    />
-                  </svg>
-                  Google
-                </button>
-                <button
-                  type="button"
-                  className="btn-oauth"
-                  onClick={() =>
-                    setStatusMessage(
-                      "Cadastro com Apple ainda não configurado nesta demo."
-                    )
-                  }
-                >
-                  <svg viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M16.365 1.43c0 1.14-.462 2.106-1.232 2.87-.83.828-2.087 1.462-3.172 1.375-.13-1.096.462-2.24 1.19-2.964.83-.83 2.13-1.42 3.214-1.28zM20.617 17.41c-.552 1.28-1.213 2.542-2.196 3.628-.94 1.03-1.977 2.04-3.32 2.06-1.32.02-1.747-.79-3.253-.79-1.507 0-1.98.77-3.228.81-1.31.04-2.31-1.116-3.26-2.14-2-2.14-3.532-6.05-1.48-8.68 1.02-1.3 2.83-2.13 4.79-2.16 1.28-.02 2.48.83 3.26.83.77 0 2.23-1.03 3.76-.88.64.03 2.44.26 3.6 1.94-.09.06-2.15 1.25-2.13 3.72.02 2.95 2.6 3.93 2.63 3.95l-.16.71z" />
-                  </svg>
-                  Apple
-                </button>
-              </div>
 
               <button type="button" className="link-btn voltar-btn" onClick={onVoltar}>
                 ← Voltar ao início
@@ -629,8 +549,11 @@ export default function SignupForm({ onGoToLogin, onVoltar }) {
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
               </div>
-              <h2>Conta criada!</h2>
-              <p>Sua conta foi criada com sucesso. Confira os dados abaixo.</p>
+              <h2>Cadastro recebido!</h2>
+              <p>
+                {summary?.mensagem ||
+                  "Um administrador precisa aprovar seu acesso antes do primeiro login."}
+              </p>
               <div className="summary">
                 <div>
                   <span>Nome</span>

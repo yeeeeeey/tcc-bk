@@ -1,5 +1,6 @@
 import React from "react";
 import Reveal from "./Reveal";
+import { Link } from "./rotas";
  
 // Ícones feitos à mão em SVG — evita depender de nomes de exportação
 // específicos do lucide-react, que mudam entre versões do pacote.
@@ -47,22 +48,34 @@ function ArrowUpRightIcon({ size = 13 }) {
 // e um bloco de redes sociais. Mesma paleta violeta do Hero/Vantagens/Planos.
 // ---------------------------------------------------------------------------
  
+// Cada link aponta para uma seção real da página (ids definidos nos componentes)
 const colunas = [
   {
     titulo: "Produto",
-    links: ["Soluções", "Recursos", "Planos", "Como funciona"],
+    links: [
+      ["Soluções", "#solucoes"],
+      ["Recursos", "#recursos"],
+      ["Planos", "#planos"],
+      ["Como funciona", "#solucoes"],
+    ],
   },
   {
     titulo: "Empresa",
-    links: ["Sobre nós", "Contato", "Trabalhe conosco"],
+    links: [
+      ["Sobre nós", "#inicio"],
+      ["Contato", "mailto:bankai_rastreio@gmail.com"],
+      ["Trabalhe conosco", "mailto:bankai_rastreio@gmail.com?subject=Trabalhe%20conosco"],
+    ],
   },
 ];
- 
+
+// Preencha "href" com o endereço real do perfil; ícones sem endereço não aparecem
+// (antes eram links "#" que abriam uma cópia do próprio site em outra aba).
 const redes = [
-  { Icon: InstagramIcon, label: "Instagram", href: "#" },
-  { Icon: LinkedinIcon, label: "LinkedIn", href: "#" },
-  { Icon: GithubIcon, label: "GitHub", href: "#" },
-];
+  { Icon: InstagramIcon, label: "Instagram", href: null },
+  { Icon: LinkedinIcon, label: "LinkedIn", href: null },
+  { Icon: GithubIcon, label: "GitHub", href: null },
+].filter((rede) => rede.href);
  
 export default function FooterSection() {
   return (
@@ -156,9 +169,9 @@ export default function FooterSection() {
             <div key={col.titulo}>
               <p className="ft-col-title">{col.titulo}</p>
               <ul className="ft-link-list">
-                {col.links.map((link) => (
-                  <li key={link}>
-                    <a className="ft-link" href="#">{link}</a>
+                {col.links.map(([rotulo, href]) => (
+                  <li key={rotulo}>
+                    <a className="ft-link" href={href}>{rotulo}</a>
                   </li>
                 ))}
               </ul>
@@ -166,14 +179,16 @@ export default function FooterSection() {
           ))}
  
           <div>
-            <p className="ft-social-title">Redes sociais</p>
-            <div className="ft-social-row">
-              {redes.map(({ Icon, label, href }) => (
-                <a key={label} className="ft-social-btn" href={href} aria-label={label} target="_blank" rel="noreferrer">
-                  <Icon size={17} />
-                </a>
-              ))}
-            </div>
+            <p className="ft-social-title">{redes.length > 0 ? "Redes sociais" : "Contato"}</p>
+            {redes.length > 0 && (
+              <div className="ft-social-row">
+                {redes.map(({ Icon, label, href }) => (
+                  <a key={label} className="ft-social-btn" href={href} aria-label={label} target="_blank" rel="noreferrer">
+                    <Icon size={17} />
+                  </a>
+                ))}
+              </div>
+            )}
             <a className="ft-contact-link" href="mailto:bankai_rastreio@gmail.com">
               <MailIcon size={14} />
               bankai_rastreio@gmail.com
@@ -186,7 +201,10 @@ export default function FooterSection() {
       <Reveal delay={0.1}>
         <div className="ft-bottom">
           <span>© {new Date().getFullYear()} Bankai. Todos os direitos reservados ao Matheus Guimarães, Matheus Gaiga, Augusto, Afonso e Lucas.</span>
-          <span>Projeto acadêmico de TCC — logística e rastreabilidade.</span>
+          <span>
+            Projeto acadêmico de TCC — logística e rastreabilidade ·{" "}
+            <Link para="/termos" className="ft-link" style={{ fontSize: "inherit" }}>Termos de uso</Link>
+          </span>
         </div>
       </Reveal>
     </footer>

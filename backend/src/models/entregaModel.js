@@ -1,49 +1,69 @@
 const pool = require("../database/connection");
+const { consultarPaginado, filtroBusca, montarAtualizacao } = require("../utils/consultas");
 
-async function listarEntregas() {
-    const resultado = await pool.query(
-        "SELECT * FROM entregas ORDER BY id"
-    );
-    return resultado.rows;
+const COLUNAS = `e.id, e.produto_id, p.nome AS produto_nome, e.quantidade, e.destino, e.data_prevista,
+                 e.status, e.armazem_id, a.nome AS armazem_nome, e.criado_em`;
+const ORIGEM = "entregas e JOIN produtos p ON p.id = e.produto_id LEFT JOIN armazens a ON a.id = e.armazem_id";
+const EDITAVEIS = ["produto_id", "quantidade", "destino", "data_prevista", "armazem_id"];
+
+async function listarEntregas({ pagina, limite, busca }) {
+    const params = [];
+    return consultarPaginado({
+        select: COLUNAS,
+        from: ORIGEM,
+        condicoes: ["e.excluido_em IS NULL", filtroBusca(["e.id", "e.destino", "e.status", "p.nome"], busca, params)],
+        params,
+        ordem: "e.id",
+        pagina,
+        limite
+    });
 }
 
-async function buscarEntregaPorId(id) {
-    const resultado = await pool.query(
-        "SELECT * FROM entregas WHERE id = $1",
+async function buscarEntregaPorId(id, executor = pool) {
+    const resultado = await executor.query(
+        `SELECT ${COLUNAS} FROM ${ORIGEM} WHERE e.id = $1 AND e.excluido_em IS NULL`,
         [id]
     );
     return resultado.rows[0];
 }
 
-async function criarEntrega({ produto_id, quantidade, destino, data_prevista, status }) {
-    const resultado = await pool.query(
-        `INSERT INTO entregas (produto_id, quantidade, destino, data_prevista, status)
-         VALUES ($1, $2, $3, $4, $5)
-         RETURNING *`,
-        [produto_id, quantidade || 1, destino, data_prevista, status || "pendente"]
+// Trava a linha da entrega até o fim da transação: alterações de status,
+// eventos de rastreamento e reservas de estoque da mesma entrega ficam em fila.
+async function bloquearEntrega(cliente, id) {
+    const resultado = await cliente.query(
+        `SELECT id, produto_id, quantidade, destino, data_prevista, status, armazem_id
+         FROM entregas WHERE id = $1 AND excluido_em IS NULL FOR UPDATE`,
+        [id]
     );
     return resultado.rows[0];
 }
 
-// Campos não enviados continuam com o valor atual
-async function atualizarEntrega(id, { produto_id, quantidade, destino, data_prevista, status }) {
-    const resultado = await pool.query(
-        `UPDATE entregas
-         SET produto_id = COALESCE($1, produto_id),
-             quantidade = COALESCE($2, quantidade),
-             destino = COALESCE($3, destino),
-             data_prevista = COALESCE($4, data_prevista),
-             status = COALESCE($5, status)
-         WHERE id = $6
-         RETURNING *`,
-        [produto_id, quantidade, destino, data_prevista, status, id]
+// Toda entrega nasce "pendente" (SEC-24)
+async function inserirEntrega(cliente, { produto_id, quantidade, destino, data_prevista, armazem_id }) {
+    const resultado = await cliente.query(
+        `INSERT INTO entregas (produto_id, quantidade, destino, data_prevista, status, armazem_id)
+         VALUES ($1, $2, $3, $4, 'pendente', $5)
+         RETURNING id`,
+        [produto_id, quantidade, destino, data_prevista ?? null, armazem_id]
     );
-    return resultado.rows[0];
+    return resultado.rows[0].id;
 }
 
-async function deletarEntrega(id) {
-    const resultado = await pool.query(
-        "DELETE FROM entregas WHERE id = $1 RETURNING *",
+// Campos não enviados continuam com o valor atual (status não é editável aqui)
+async function atualizarCampos(cliente, id, campos) {
+    const { sets, params } = montarAtualizacao(campos, EDITAVEIS);
+    if (sets.length === 0) return;
+    params.push(id);
+    await cliente.query(`UPDATE entregas SET ${sets.join(", ")} WHERE id = $${params.length}`, params);
+}
+
+async function atualizarStatus(cliente, id, status) {
+    await cliente.query("UPDATE entregas SET status = $1 WHERE id = $2", [status, id]);
+}
+
+async function marcarExcluida(cliente, id) {
+    const resultado = await cliente.query(
+        "UPDATE entregas SET excluido_em = NOW() WHERE id = $1 RETURNING id",
         [id]
     );
     return resultado.rows[0];
@@ -52,7 +72,9 @@ async function deletarEntrega(id) {
 module.exports = {
     listarEntregas,
     buscarEntregaPorId,
-    criarEntrega,
-    atualizarEntrega,
-    deletarEntrega
-};        
+    bloquearEntrega,
+    inserirEntrega,
+    atualizarCampos,
+    atualizarStatus,
+    marcarExcluida
+};

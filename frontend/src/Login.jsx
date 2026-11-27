@@ -124,39 +124,7 @@ const styles = `
     text-decoration:none;
   }
 
-  .lg-divider{
-    display:flex;
-    align-items:center;
-    gap:12px;
-    margin:28px 0;
-    font-size:12px;
-    color:#64748b;
-  }
-  .lg-divider::before, .lg-divider::after{
-    content:"";
-    flex:1;
-    height:1px;
-    background:rgba(255,255,255,.1);
-  }
 
-  .lg-oauth{ display:flex; flex-direction:column; gap:12px; }
-  .lg-btn-oauth{
-    width:100%;
-    padding:12px;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    gap:8px;
-    border-radius:12px;
-    border:1px solid rgba(255,255,255,.1);
-    background:rgba(0,0,0,.4);
-    color:#fff;
-    font-size:14px;
-    cursor:pointer;
-    transition:background .15s ease;
-  }
-  .lg-btn-oauth:hover{ background:rgba(255,255,255,.05); }
-  .lg-btn-oauth:disabled{ opacity:.6; cursor:not-allowed; }
 
   .lg-success{
     display:flex;
@@ -220,13 +188,13 @@ const EYE_CLOSED = (
   </>
 );
 
-export default function LoginScreen({ onGoToSignup, onLogin, onVoltar, emailInicial = "" }) {
+export default function LoginScreen({ onGoToSignup, onLogin, onVoltar, emailInicial = "", avisoInicial = "" }) {
   const [email, setEmail] = useState(emailInicial);
   const [senha, setSenha] = useState("");
   const [showSenha, setShowSenha] = useState(false);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
-  const [notice, setNotice] = useState("");
+  const [notice, setNotice] = useState(avisoInicial);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -348,36 +316,6 @@ export default function LoginScreen({ onGoToSignup, onLogin, onVoltar, emailInic
                 {notice}
               </p>
             )}
-
-            <div className="lg-divider">ou registre com</div>
-
-            <div className="lg-oauth">
-              <button
-                type="button"
-                className="lg-btn-oauth"
-                disabled={loading}
-                onClick={() => setNotice("Login com Apple ainda não disponível (demo).")}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                  <path d="M16.365 1.43c0 1.14-.462 2.106-1.232 2.87-.83.828-2.087 1.462-3.172 1.375-.13-1.096.462-2.24 1.19-2.964.83-.83 2.13-1.42 3.214-1.28zM20.617 17.41c-.552 1.28-1.213 2.542-2.196 3.628-.94 1.03-1.977 2.04-3.32 2.06-1.32.02-1.747-.79-3.253-.79-1.507 0-1.98.77-3.228.81-1.31.04-2.31-1.116-3.26-2.14-2-2.14-3.532-6.05-1.48-8.68 1.02-1.3 2.83-2.13 4.79-2.16 1.28-.02 2.48.83 3.26.83.77 0 2.23-1.03 3.76-.88.64.03 2.44.26 3.6 1.94-.09.06-2.15 1.25-2.13 3.72.02 2.95 2.6 3.93 2.63 3.95l-.16.71z" />
-                </svg>
-                Apple
-              </button>
-              <button
-                type="button"
-                className="lg-btn-oauth"
-                disabled={loading}
-                onClick={() => setNotice("Login com Google ainda não disponível (demo).")}
-              >
-                <svg width="16" height="16" viewBox="0 0 48 48" aria-hidden="true">
-                  <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6 29.6 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z" />
-                  <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.5 16 18.9 13 24 13c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6 29.6 4 24 4 16.3 4 9.7 8.3 6.3 14.7z" />
-                  <path fill="#4CAF50" d="M24 44c5.5 0 10.4-1.9 14.3-5.1l-6.6-5.6C29.7 34.9 27 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.6 5.1C9.6 39.6 16.3 44 24 44z" />
-                  <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.2-4.1 5.5l6.6 5.6C41.5 36 44 30.5 44 24c0-1.3-.1-2.7-.4-3.5z" />
-                </svg>
-                Google
-              </button>
-            </div>
 
             <button type="button" className="lg-link lg-voltar" onClick={onVoltar}>
               ← Voltar ao início

@@ -1,87 +1,46 @@
 const armazemModel = require("../models/armazemModel");
- 
+const { gravarComAuditoria, camposAlterados } = require("../services/auditoria");
+const { naoEncontrado } = require("../utils/erros");
+
 async function listar(req, res) {
-    try {
-        const armazens = await armazemModel.listarArmazens();
-        res.json(armazens);
-    } catch (erro) {
-        console.error(erro);
-        res.status(500).json({ erro: "Erro ao listar armazéns" });
-    }
+    res.json(await armazemModel.listarArmazens(req.dados.query));
 }
- 
+
 async function buscarPorId(req, res) {
-    try {
-        const armazem = await armazemModel.buscarArmazemPorId(req.params.id);
- 
-        if (!armazem) {
-            return res.status(404).json({ erro: "Armazém não encontrado" });
-        }
- 
-        res.json(armazem);
-    } catch (erro) {
-        console.error(erro);
-        res.status(500).json({ erro: "Erro ao buscar armazém" });
-    }
+    const armazem = await armazemModel.buscarArmazemPorId(req.dados.params.id);
+    if (!armazem) throw naoEncontrado("Armazém não encontrado");
+    res.json(armazem);
 }
- 
+
 async function criar(req, res) {
-    try {
-        const { nome, localizacao, capacidade_maxima, status } = req.body;
- 
-        if (!nome || !localizacao) {
-            return res.status(400).json({ erro: "Nome e localização são obrigatórios" });
-        }
- 
-        const novoArmazem = await armazemModel.criarArmazem({
-            nome,
-            localizacao,
-            capacidade_maxima,
-            status
-        });
- 
-        res.status(201).json(novoArmazem);
-    } catch (erro) {
-        console.error(erro);
-        res.status(500).json({ erro: "Erro ao criar armazém" });
-    }
+    const armazem = await gravarComAuditoria(
+        req,
+        { acao: "criar", recurso: "armazens", detalhes: { campos: camposAlterados(req.dados.body) } },
+        (cliente) => armazemModel.criarArmazem(cliente, req.dados.body)
+    );
+    res.status(201).json(armazem);
 }
- 
+
 async function atualizar(req, res) {
-    try {
-        const { nome, localizacao, capacidade_maxima, status } = req.body;
- 
-        const armazemAtualizado = await armazemModel.atualizarArmazem(
-            req.params.id,
-            { nome, localizacao, capacidade_maxima, status }
-        );
- 
-        if (!armazemAtualizado) {
-            return res.status(404).json({ erro: "Armazém não encontrado" });
-        }
- 
-        res.json(armazemAtualizado);
-    } catch (erro) {
-        console.error(erro);
-        res.status(500).json({ erro: "Erro ao atualizar armazém" });
-    }
+    const armazem = await gravarComAuditoria(
+        req,
+        { acao: "editar", recurso: "armazens", detalhes: { campos: camposAlterados(req.dados.body) } },
+        (cliente) => armazemModel.atualizarArmazem(cliente, req.dados.params.id, req.dados.body)
+    );
+    if (!armazem) throw naoEncontrado("Armazém não encontrado");
+    res.json(armazem);
 }
- 
+
 async function deletar(req, res) {
-    try {
-        const armazemDeletado = await armazemModel.deletarArmazem(req.params.id);
- 
-        if (!armazemDeletado) {
-            return res.status(404).json({ erro: "Armazém não encontrado" });
-        }
- 
-        res.json({ mensagem: "Armazém deletado com sucesso" });
-    } catch (erro) {
-        console.error(erro);
-        res.status(500).json({ erro: "Erro ao deletar armazém" });
-    }
+    const armazem = await gravarComAuditoria(
+        req,
+        { acao: "excluir", recurso: "armazens", detalhes: (a) => ({ nome: a.nome }) },
+        (cliente) => armazemModel.excluirArmazem(cliente, req.dados.params.id)
+    );
+    if (!armazem) throw naoEncontrado("Armazém não encontrado");
+    res.json({ mensagem: "Armazém excluído com sucesso" });
 }
- 
+
 module.exports = {
     listar,
     buscarPorId,
